@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import dynamic from 'next/dynamic';
-const ClientProviders = dynamic(() => import('./providers'), { ssr: false });
+import Providers from './providers';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,15 +25,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {/* Client providers (LIFF, etc.) */}
-        {/* eslint-disable-next-line react/no-unknown-property */}
-        <div suppressHydrationWarning>
-          {/* @ts-expect-error Async Server Component boundary */}
-          <ClientProviders>{children}</ClientProviders>
-        </div>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
