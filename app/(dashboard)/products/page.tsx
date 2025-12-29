@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Plus, Search, Edit, Trash2, Coffee, Package, Image as ImageIcon, FolderPlus } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Coffee, Package, Image as ImageIcon, FolderPlus, X } from 'lucide-react';
 import { Header } from '@/components/layout';
 import { Button, Card, CardContent, Modal, Badge } from '@/components/ui';
 import { formatCurrency, cn } from '@/lib/utils';
 import { Product, Category } from '@/lib/types';
-import { getAllProducts, getAllCategories, createProduct, updateProduct, deleteProduct, createCategory } from '@/lib/db/products';
+import { getAllProducts, getAllCategories, createProduct, updateProduct, deleteProduct, createCategory, deleteCategory } from '@/lib/db/products';
 import { supabase } from '@/lib/supabase';
 
 export default function ProductsPage() {
@@ -16,6 +16,7 @@ export default function ProductsPage() {
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
+  const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -93,6 +94,29 @@ export default function ProductsPage() {
     }
   };
 
+  const handleDeleteCategory = async () => {
+    if (!deletingCategory) return;
+    
+    // Check if category has products
+    const hasProducts = products.some(p => p.category_id === deletingCategory.id);
+    if (hasProducts) {
+      alert('ไม่สามารถลบหมวดหมู่ได้ เนื่องจากมีสินค้าอยู่ในหมวดหมู่นี้');
+      setDeletingCategory(null);
+      return;
+    }
+
+    const res = await deleteCategory(deletingCategory.id);
+    if (!res.error) {
+      setCategories(categories.filter(c => c.id !== deletingCategory.id));
+      if (selectedCategory === deletingCategory.id) {
+        setSelectedCategory(null);
+      }
+    } else {
+      alert('ไม่สามารถลบหมวดหมู่ได้');
+    }
+    setDeletingCategory(null);
+  };
+
   return (
     <div className="flex flex-col h-screen">
       <Header title="จัดการสินค้า" subtitle="เพิ่ม แก้ไข ลบสินค้า" />
@@ -137,16 +161,32 @@ export default function ProductsPage() {
               ทั้งหมด
             </button>
             {categories.map((category) => (
-              <button
-                key={category.id}
-                onClick={() => setSelectedCategory(category.id)}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap',
-                  selectedCategory === category.id ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-600'
-                )}
-              >
-                {category.name}
-              </button>
+              <div key={category.id} className="relative inline-flex group">
+                <button
+                  onClick={() => setSelectedCategory(category.id)}
+                  className={cn(
+                    'px-3 py-1.5 pr-8 rounded-lg text-sm font-medium transition-colors whitespace-nowrap',
+                    selectedCategory === category.id ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-600'
+                  )}
+                >
+                  {category.name}
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDeletingCategory(category);
+                  }}
+                  className={cn(
+                    'absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity',
+                    selectedCategory === category.id
+                      ? 'text-white hover:bg-amber-700'
+                      : 'text-gray-500 hover:bg-gray-200'
+                  )}
+                  title="ลบหมวดหมู่"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
             ))}
           </div>
           <button
@@ -299,6 +339,24 @@ export default function ProductsPage() {
         onClose={() => setIsAddCategoryOpen(false)}
         onSave={handleCreateCategory}
       />
+
+      {/* Delete Category Confirm Modal */}
+      {deletingCategory && (
+        <Modal isOpen={true} onClose={() => setDeletingCategory(null)} title="ยืนยันการลบหมวดหมู่">
+          <div className="space-y-4">
+            <p className="text-gray-600">
+              คุณต้องการลบหมวดหมู่ <strong>{deletingCategory.name}</strong> ใช่หรือไม่?
+            </p>
+            <p className="text-sm text-amber-600">
+              ⚠️ หากหมวดหมู่นี้มีสินค้าอยู่จะไม่สามารถลบได้
+            </p>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setDeletingCategory(null)} className="flex-1">ยกเลิก</Button>
+              <Button onClick={handleDeleteCategory} className="flex-1 bg-red-600 hover:bg-red-700">ลบหมวดหมู่</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
