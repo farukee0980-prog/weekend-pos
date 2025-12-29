@@ -36,7 +36,7 @@ export interface Cart {
 
 // Order Types
 export type OrderStatus = 'pending' | 'completed' | 'cancelled';
-export type PaymentMethod = 'cash' | 'transfer' | 'credit_card';
+export type PaymentMethod = 'cash' | 'transfer';
 
 export interface OrderItem {
   id: string;
@@ -70,7 +70,6 @@ export interface DailySummary {
   payment_breakdown: {
     cash: number;
     transfer: number;
-    credit_card: number;
   };
 }
 

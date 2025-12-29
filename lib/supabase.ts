@@ -11,4 +11,5 @@ export const TABLES = {
   CATEGORIES: 'categories',
   ORDERS: 'orders',
   ORDER_ITEMS: 'order_items',
+  SESSIONS: 'store_sessions',
 } as const;

@@ -1,239 +1,730 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Header } from '@/components/layout';
-import { Card, CardContent, Badge } from '@/components/ui';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { Card, CardContent, Badge, Modal } from '@/components/ui';
+import { formatCurrency } from '@/lib/utils';
+import { getTodaySales, getTopProducts, getOrdersByDateRange, getSalesSummaryByDateRange } from '@/lib/db/orders';
+import { getCurrentSession, getLastSession, openSession, closeSession, getAllSessions, StoreSession } from '@/lib/db/sessions';
+import type { Order, DailySummary } from '@/lib/types';
 import { 
   TrendingUp, 
   DollarSign, 
   ShoppingCart, 
   Package,
-  ArrowUp,
-  ArrowDown,
-  Calendar
+  Calendar,
+  Clock,
+  History,
+  ChevronRight,
+  X,
+  Banknote,
+  Smartphone,
+  Store,
+  Power,
+  PowerOff,
+  CalendarClock
 } from 'lucide-react';
 
-// Demo data - replace with real data from database
-const salesData = {
-  today: {
-    revenue: 4850,
-    orders: 23,
-    items: 67,
-    change: 12.5
-  },
-  week: {
-    revenue: 28500,
-    orders: 145,
-    items: 412,
-    change: 8.3
-  },
-  month: {
-    revenue: 125000,
-    orders: 580,
-    items: 1823,
-    change: -3.2
-  }
-};
+const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || '1234';
 
-const topProducts = [
-  { name: 'อเมริกาโน่เย็น', sales: 145, revenue: 7250 },
-  { name: 'ลาเต้ร้อน', sales: 132, revenue: 6600 },
-  { name: 'คาปูชิโน่', sales: 98, revenue: 5390 },
-  { name: 'เอสเปรสโซ่', sales: 87, revenue: 3480 },
-  { name: 'มอคค่าเย็น', sales: 76, revenue: 4560 },
-];
-
-const recentOrders = [
-  { orderNumber: '20251229-143022', total: 145, items: 3, time: '14:30' },
-  { orderNumber: '20251229-142515', total: 95, items: 2, time: '14:25' },
-  { orderNumber: '20251229-141033', total: 220, items: 4, time: '14:10' },
-  { orderNumber: '20251229-135544', total: 75, items: 1, time: '13:55' },
-  { orderNumber: '20251229-134211', total: 180, items: 3, time: '13:42' },
-];
+interface SessionSummary {
+  id?: string;
+  start: string;
+  end: string;
+  totalOrders: number;
+  totalRevenue: number;
+  totalItems: number;
+  cashRevenue: number;
+  transferRevenue: number;
+}
 
 export default function ReportsPage() {
-  const [period, setPeriod] = useState<'today' | 'week' | 'month'>('today');
-  const currentData = salesData[period];
+  const [todayRevenue, setTodayRevenue] = useState(0);
+  const [todayOrders, setTodayOrders] = useState(0);
+  const [todayItems, setTodayItems] = useState(0);
+
+  const [topProducts, setTopProducts] = useState<Array<{ productName: string; quantitySold: number; revenue: number }>>([]);
+  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [sessionStart, setSessionStart] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [lastSessionSummary, setLastSessionSummary] = useState<SessionSummary | null>(null);
+  const [isClosing, setIsClosing] = useState(false);
+
+  const [authMode, setAuthMode] = useState<'open' | 'close' | null>(null);
+  const [authPassword, setAuthPassword] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
+
+  const [weeklySummary, setWeeklySummary] = useState<DailySummary | null>(null);
+  const [monthlySummary, setMonthlySummary] = useState<DailySummary | null>(null);
+
+  // Session history
+  const [sessionHistory, setSessionHistory] = useState<StoreSession[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<SessionSummary | null>(null);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [todayRes, topRes, currentSessionRes, lastSessionRes, allSessionsRes] = await Promise.all([
+          getTodaySales(),
+          getTopProducts(),
+          getCurrentSession(),
+          getLastSession(),
+          getAllSessions(30),
+        ]);
+
+        if (todayRes.error) throw new Error(todayRes.error);
+        if (topRes.error) throw new Error(topRes.error);
+
+        const today = todayRes.data!;
+        setTodayRevenue(today.totalRevenue);
+        setTodayOrders(today.totalOrders);
+        setTodayItems(today.totalItems);
+
+        setTopProducts(topRes.data || []);
+
+        if (currentSessionRes.data) {
+          setSessionId(currentSessionRes.data.id);
+          setSessionStart(currentSessionRes.data.opened_at);
+        }
+
+        if (lastSessionRes.data) {
+          setLastSessionSummary({
+            id: lastSessionRes.data.id,
+            start: lastSessionRes.data.opened_at,
+            end: lastSessionRes.data.closed_at || lastSessionRes.data.opened_at,
+            totalOrders: lastSessionRes.data.total_orders ?? 0,
+            totalRevenue: lastSessionRes.data.total_revenue ?? 0,
+            totalItems: lastSessionRes.data.total_items ?? 0,
+            cashRevenue: (lastSessionRes.data as any).cash_revenue ?? 0,
+            transferRevenue: (lastSessionRes.data as any).transfer_revenue ?? 0,
+          });
+        }
+
+        if (allSessionsRes.data) {
+          setSessionHistory(allSessionsRes.data);
+        }
+
+        // Recent orders for today
+        const now = new Date();
+        const startOfDay = new Date(now);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(now);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        const startOfWeek = new Date(now);
+        const day = startOfWeek.getDay();
+        const diff = day === 0 ? -6 : 1 - day;
+        startOfWeek.setDate(startOfWeek.getDate() + diff);
+        startOfWeek.setHours(0, 0, 0, 0);
+
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        startOfMonth.setHours(0, 0, 0, 0);
+
+        const [ordersRes, weekRes, monthRes] = await Promise.all([
+          getOrdersByDateRange(startOfDay.toISOString(), endOfDay.toISOString()),
+          getSalesSummaryByDateRange(startOfWeek.toISOString(), now.toISOString()),
+          getSalesSummaryByDateRange(startOfMonth.toISOString(), now.toISOString()),
+        ]);
+
+        if (ordersRes.error) throw new Error(ordersRes.error);
+
+        setRecentOrders((ordersRes.data || []).slice(0, 5));
+        setWeeklySummary(weekRes.data || null);
+        setMonthlySummary(monthRes.data || null);
+      } catch (err: any) {
+        console.error(err);
+        setError(err.message || 'เกิดข้อผิดพลาดในการโหลดรายงาน');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadData();
+  }, []);
+
+  const handleCloseSession = async () => {
+    if (!sessionStart || !sessionId) return;
+    setIsClosing(true);
+
+    try {
+      const end = new Date().toISOString();
+      const ordersRes = await getOrdersByDateRange(sessionStart, end);
+      if (ordersRes.error) throw new Error(ordersRes.error);
+
+      const orders = ordersRes.data || [];
+      const totalOrders = orders.length;
+      const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0);
+      const totalItems = orders.reduce(
+        (sum, o) => sum + o.items.reduce((s, item) => s + item.quantity, 0),
+        0
+      );
+
+      let cashRevenue = 0;
+      let transferRevenue = 0;
+
+      orders.forEach((o) => {
+        if (o.payment_method === 'cash') {
+          cashRevenue += o.total;
+        } else if (o.payment_method === 'transfer') {
+          transferRevenue += o.total;
+        }
+      });
+
+      const summary: SessionSummary = {
+        start: sessionStart,
+        end,
+        totalOrders,
+        totalRevenue,
+        totalItems,
+        cashRevenue,
+        transferRevenue,
+      };
+
+      const closeRes = await closeSession(sessionId, {
+        totalOrders,
+        totalItems,
+        totalRevenue,
+        cashRevenue,
+        transferRevenue,
+      });
+      if (closeRes.error) throw new Error(closeRes.error);
+
+      setLastSessionSummary({ ...summary, id: sessionId });
+      setSessionStart(null);
+      setSessionId(null);
+
+      // Reload session history
+      const allSessionsRes = await getAllSessions(30);
+      if (allSessionsRes.data) {
+        setSessionHistory(allSessionsRes.data);
+      }
+
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('pos_session_start');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'เกิดข้อผิดพลาดขณะปิดร้าน');
+    } finally {
+      setIsClosing(false);
+    }
+  };
+
+  const formatSessionDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('th-TH', { 
+      day: 'numeric', 
+      month: 'short', 
+      year: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const viewSessionDetail = (session: StoreSession) => {
+    setSelectedSession({
+      id: session.id,
+      start: session.opened_at,
+      end: session.closed_at || session.opened_at,
+      totalOrders: session.total_orders ?? 0,
+      totalRevenue: session.total_revenue ?? 0,
+      totalItems: session.total_items ?? 0,
+      cashRevenue: (session as any).cash_revenue ?? 0,
+      transferRevenue: (session as any).transfer_revenue ?? 0,
+    });
+  };
 
   return (
     <div className="flex flex-col h-screen">
-      <Header title="รายงาน" subtitle="แดชบอร์ดรายงานยอดขายและสถิติ" />
+      <Header title="รายงาน" subtitle="สรุปยอดขายและประวัติการเปิด-ปิดร้าน" />
 
-      <div className="flex-1 overflow-auto p-6 space-y-6">
-        {/* Period Selector */}
-        <div className="flex gap-2">
-          <button
-            onClick={() => setPeriod('today')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              period === 'today'
-                ? 'bg-amber-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+      <div className="flex-1 overflow-auto p-4 md:p-6 space-y-4 md:space-y-6">
+        {/* Password Confirm Modal */}
+        {authMode && (
+          <Modal
+            isOpen={true}
+            onClose={() => {
+              if (!isAuthSubmitting) {
+                setAuthMode(null);
+                setAuthPassword('');
+                setAuthError(null);
+              }
+            }}
+            title={authMode === 'open' ? 'ยืนยันการเปิดร้าน' : 'ยืนยันการปิดร้าน'}
           >
-            วันนี้
-          </button>
-          <button
-            onClick={() => setPeriod('week')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              period === 'week'
-                ? 'bg-amber-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            สัปดาห์นี้
-          </button>
-          <button
-            onClick={() => setPeriod('month')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              period === 'month'
-                ? 'bg-amber-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            เดือนนี้
-          </button>
-        </div>
+            <form
+              className="space-y-4"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setAuthError(null);
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <StatCard
-            title="ยอดขาย"
-            value={formatCurrency(currentData.revenue)}
-            change={currentData.change}
-            icon={DollarSign}
-            iconColor="text-green-600"
-            iconBg="bg-green-50"
-          />
-          <StatCard
-            title="จำนวนออเดอร์"
-            value={currentData.orders.toString()}
-            change={currentData.change}
-            icon={ShoppingCart}
-            iconColor="text-blue-600"
-            iconBg="bg-blue-50"
-          />
-          <StatCard
-            title="จำนวนสินค้า"
-            value={currentData.items.toString()}
-            change={currentData.change}
-            icon={Package}
-            iconColor="text-amber-600"
-            iconBg="bg-amber-50"
-          />
-        </div>
+                if (authPassword !== ADMIN_PASSWORD) {
+                  setAuthError('รหัสผ่านไม่ถูกต้อง');
+                  return;
+                }
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Top Products */}
-          <Card>
-            <CardContent className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-amber-600" />
-                สินค้าขายดี Top 5
-              </h3>
-              <div className="space-y-3">
-                {topProducts.map((product, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-50 text-amber-700 font-semibold text-sm">
-                        {index + 1}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{product.name}</p>
-                        <p className="text-xs text-gray-500">{product.sales} รายการ</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-gray-900">
-                        {formatCurrency(product.revenue)}
-                      </p>
+                setIsAuthSubmitting(true);
+                try {
+                  if (authMode === 'open') {
+                    const openRes = await openSession('admin');
+                    if (openRes.error || !openRes.data) {
+                      throw new Error(openRes.error || 'เปิดร้านไม่สำเร็จ');
+                    }
+                    setSessionId(openRes.data.id);
+                    setSessionStart(openRes.data.opened_at);
+                    if (typeof window !== 'undefined') {
+                      localStorage.setItem('pos_session_start', openRes.data.opened_at);
+                    }
+                  } else if (authMode === 'close') {
+                    await handleCloseSession();
+                  }
+                  setAuthMode(null);
+                  setAuthPassword('');
+                } catch (err: any) {
+                  setAuthError(err?.message || 'เกิดข้อผิดพลาด');
+                } finally {
+                  setIsAuthSubmitting(false);
+                }
+              }}
+            >
+              <p className="text-sm text-gray-600">
+                กรุณากรอกรหัสผ่านผู้ดูแลเพื่อ
+                {authMode === 'open' ? 'เปิดร้านรอบใหม่' : 'ปิดร้านและสรุปรอบนี้'}
+              </p>
+              <input
+                type="password"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+                autoFocus
+              />
+              {authError && <p className="text-sm text-red-600">{authError}</p>}
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isAuthSubmitting) {
+                      setAuthMode(null);
+                      setAuthPassword('');
+                      setAuthError(null);
+                    }
+                  }}
+                  className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={isAuthSubmitting}
+                  className="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 disabled:opacity-60"
+                >
+                  {isAuthSubmitting ? 'กำลังยืนยัน...' : 'ยืนยัน'}
+                </button>
+              </div>
+            </form>
+          </Modal>
+        )}
+
+        {/* Session Detail Modal */}
+        {selectedSession && (
+          <Modal
+            isOpen={true}
+            onClose={() => setSelectedSession(null)}
+            title="รายละเอียดรอบการขาย"
+            size="lg"
+          >
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <Clock className="w-4 h-4" />
+                <span>
+                  {formatSessionDate(selectedSession.start)} - {formatSessionDate(selectedSession.end)}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-blue-50 rounded-xl p-3 text-center">
+                  <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 mx-auto mb-1 sm:mb-2" />
+                  <p className="text-xl sm:text-2xl font-bold text-gray-900">{selectedSession.totalOrders}</p>
+                  <p className="text-xs text-gray-500">ออเดอร์</p>
+                </div>
+                <div className="bg-purple-50 rounded-xl p-3 text-center">
+                  <Package className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600 mx-auto mb-1 sm:mb-2" />
+                  <p className="text-xl sm:text-2xl font-bold text-gray-900">{selectedSession.totalItems}</p>
+                  <p className="text-xs text-gray-500">รายการ</p>
+                </div>
+                <div className="bg-amber-50 rounded-xl p-3 text-center">
+                  <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600 mx-auto mb-1 sm:mb-2" />
+                  <p className="text-base sm:text-xl font-bold text-amber-600">{formatCurrency(selectedSession.totalRevenue)}</p>
+                  <p className="text-xs text-gray-500">ยอดรวม</p>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <p className="text-sm font-medium text-gray-700 mb-3">แยกตามช่องทางชำระ</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
+                    <Banknote className="w-5 h-5 text-green-600" />
+                    <div>
+                      <p className="text-xs text-gray-500">เงินสด</p>
+                      <p className="text-lg font-semibold text-gray-900">{formatCurrency(selectedSession.cashRevenue)}</p>
                     </div>
                   </div>
-                ))}
+                  <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
+                    <Smartphone className="w-5 h-5 text-blue-600" />
+                    <div>
+                      <p className="text-xs text-gray-500">โอนเงิน</p>
+                      <p className="text-lg font-semibold text-gray-900">{formatCurrency(selectedSession.transferRevenue)}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setSelectedSession(null)}
+                className="w-full py-2 rounded-lg bg-gray-100 text-gray-700 font-medium hover:bg-gray-200"
+              >
+                ปิด
+              </button>
+            </div>
+          </Modal>
+        )}
+
+        {/* Session History Modal */}
+        {showHistory && (
+          <Modal
+            isOpen={true}
+            onClose={() => setShowHistory(false)}
+            title="ประวัติการเปิด-ปิดร้าน"
+            size="lg"
+          >
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {sessionHistory.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">ยังไม่มีประวัติ</p>
+              ) : (
+                sessionHistory.map((session) => (
+                  <button
+                    key={session.id}
+                    onClick={() => {
+                      viewSessionDetail(session);
+                      setShowHistory(false);
+                    }}
+                    className="w-full flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors text-left"
+                  >
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">
+                        {new Date(session.opened_at).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'short', year: '2-digit' })}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(session.opened_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} - {session.closed_at ? new Date(session.closed_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                      </p>
+                    </div>
+                    <div className="text-right mr-2">
+                      <p className="text-sm font-semibold text-amber-600">{formatCurrency(session.total_revenue ?? 0)}</p>
+                      <p className="text-xs text-gray-500">{session.total_orders ?? 0} ออเดอร์</p>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-gray-400" />
+                  </button>
+                ))
+              )}
+            </div>
+            <button
+              onClick={() => setShowHistory(false)}
+              className="w-full mt-4 py-2 rounded-lg bg-gray-100 text-gray-700 font-medium hover:bg-gray-200"
+            >
+              ปิด
+            </button>
+          </Modal>
+        )}
+
+        {/* Shop Status Card */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                  <Store className="w-5 h-5 text-amber-600" />
+                  สถานะร้าน
+                </p>
+                {sessionStart ? (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 rounded-full">
+                    <Power className="w-4 h-4 text-green-600" />
+                    <span className="text-sm font-medium text-green-700">เปิดอยู่</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full">
+                    <PowerOff className="w-4 h-4 text-gray-500" />
+                    <span className="text-sm font-medium text-gray-600">ปิดอยู่</span>
+                  </div>
+                )}
+              </div>
+              {sessionStart && (
+                <div className="flex items-center gap-2 text-xs text-gray-600 px-2">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>เปิดตั้งแต่ {new Date(sessionStart).toLocaleString('th-TH', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}</span>
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setShowHistory(true)}
+                  className="flex-1 sm:flex-none px-4 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 flex items-center justify-center gap-2"
+                >
+                  <History className="w-4 h-4" />
+                  <span>ประวัติ</span>
+                </button>
+                {!sessionStart ? (
+                  <button
+                    onClick={() => {
+                      setAuthMode('open');
+                      setAuthPassword('');
+                      setAuthError(null);
+                    }}
+                    className="flex-1 sm:flex-none px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 flex items-center justify-center gap-2"
+                  >
+                    <Power className="w-4 h-4" />
+                    <span>เปิดร้าน</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setAuthMode('close');
+                      setAuthPassword('');
+                      setAuthError(null);
+                    }}
+                    disabled={isClosing}
+                    className="flex-1 sm:flex-none px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-60 flex items-center justify-center gap-2"
+                  >
+                    <PowerOff className="w-4 h-4" />
+                    <span>{isClosing ? 'กำลังปิด...' : 'ปิดร้าน'}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Last Session Summary */}
+        {lastSessionSummary && !sessionStart && (
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold text-gray-900">สรุปรอบล่าสุด</p>
+                <button
+                  onClick={() => setSelectedSession(lastSessionSummary)}
+                  className="text-xs text-amber-600 hover:underline"
+                >
+                  ดูรายละเอียด
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mb-3">
+                {formatSessionDate(lastSessionSummary.start)} - {formatSessionDate(lastSessionSummary.end)}
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">ออเดอร์</p>
+                  <p className="text-lg font-bold text-gray-900">{lastSessionSummary.totalOrders}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">ยอดรวม</p>
+                  <p className="text-lg font-bold text-amber-600">{formatCurrency(lastSessionSummary.totalRevenue)}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">เงินสด</p>
+                  <p className="text-lg font-bold text-green-600">{formatCurrency(lastSessionSummary.cashRevenue)}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">โอน</p>
+                  <p className="text-lg font-bold text-blue-600">{formatCurrency(lastSessionSummary.transferRevenue)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {error && (
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-sm text-red-600">{error}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {isLoading && !error && (
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-sm text-gray-500">กำลังโหลดข้อมูลรายงาน...</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Stats Cards - Today */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Calendar className="w-4 h-4 text-gray-600" />
+            <p className="text-sm font-semibold text-gray-900">ยอดวันนี้</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Card>
+              <CardContent className="p-3 sm:p-4 flex items-center gap-3">
+                <div className="p-2 sm:p-3 rounded-xl bg-amber-50">
+                  <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-500">ยอดขาย</p>
+                  <p className="text-lg sm:text-xl font-bold text-gray-900 truncate">{formatCurrency(todayRevenue)}</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-3 sm:p-4 flex items-center gap-3">
+                <div className="p-2 sm:p-3 rounded-xl bg-blue-50">
+                  <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-500">ออเดอร์</p>
+                  <p className="text-lg sm:text-xl font-bold text-gray-900">{todayOrders}</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-3 sm:p-4 flex items-center gap-3">
+                <div className="p-2 sm:p-3 rounded-xl bg-purple-50">
+                  <Package className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-500">รายการ</p>
+                  <p className="text-lg sm:text-xl font-bold text-gray-900">{todayItems}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* Weekly & Monthly Summary */}
+        {(weeklySummary || monthlySummary) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {weeklySummary && (
+              <Card>
+                <CardContent className="p-4">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-blue-600" />
+                    สรุปสัปดาห์นี้
+                  </h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-500">ยอดรวม</span>
+                      <span className="text-sm font-semibold text-amber-600">{formatCurrency(weeklySummary.total_revenue)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-500">ออเดอร์</span>
+                      <span className="text-sm text-gray-900">{weeklySummary.total_orders}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-500">เงินสด</span>
+                      <span className="text-sm text-green-600">{formatCurrency(weeklySummary.payment_breakdown.cash)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-500">โอน</span>
+                      <span className="text-sm text-blue-600">{formatCurrency(weeklySummary.payment_breakdown.transfer)}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            {monthlySummary && (
+              <Card>
+                <CardContent className="p-4">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <CalendarClock className="w-4 h-4 text-purple-600" />
+                    สรุปเดือนนี้
+                  </h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-500">ยอดรวม</span>
+                      <span className="text-sm font-semibold text-amber-600">{formatCurrency(monthlySummary.total_revenue)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-500">ออเดอร์</span>
+                      <span className="text-sm text-gray-900">{monthlySummary.total_orders}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-500">เงินสด</span>
+                      <span className="text-sm text-green-600">{formatCurrency(monthlySummary.payment_breakdown.cash)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-500">โอน</span>
+                      <span className="text-sm text-blue-600">{formatCurrency(monthlySummary.payment_breakdown.transfer)}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* Top Products & Recent Orders */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardContent className="p-4">
+              <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-amber-600" />
+                สินค้าขายดี
+              </h3>
+              <div className="space-y-3">
+                {topProducts.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-4">ยังไม่มีข้อมูล</p>
+                ) : (
+                  topProducts.slice(0, 5).map((product, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-amber-50 text-amber-700 font-semibold text-xs">
+                          {index + 1}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{product.productName}</p>
+                          <p className="text-xs text-gray-500">{product.quantitySold} ชิ้น</p>
+                        </div>
+                      </div>
+                      <p className="text-sm font-semibold text-gray-900">{formatCurrency(product.revenue)}</p>
+                    </div>
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>
 
-          {/* Recent Orders */}
           <Card>
-            <CardContent className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-blue-600" />
+            <CardContent className="p-4">
+              <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-blue-600" />
                 ออเดอร์ล่าสุด
               </h3>
               <div className="space-y-3">
-                {recentOrders.map((order, index) => (
-                  <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">#{order.orderNumber}</p>
-                      <p className="text-xs text-gray-500">{order.items} รายการ · {order.time}</p>
+                {recentOrders.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-4">ยังไม่มีออเดอร์วันนี้</p>
+                ) : (
+                  recentOrders.map((order) => (
+                    <div key={order.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">#{order.order_number.slice(-6)}</p>
+                        <p className="text-xs text-gray-500">
+                          {order.items.reduce((sum, item) => sum + item.quantity, 0)} รายการ · {new Date(order.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                      <p className="text-sm font-semibold text-gray-900">{formatCurrency(order.total)}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-gray-900">
-                        {formatCurrency(order.total)}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>
         </div>
-
-        {/* Note */}
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-gray-600">
-              💡 <span className="font-medium">หมายเหตุ:</span> ข้อมูลที่แสดงเป็นข้อมูลตัวอย่าง 
-              เมื่อเชื่อมต่อฐานข้อมูลจะแสดงข้อมูลจริงจากรายการขาย
-            </p>
-          </CardContent>
-        </Card>
       </div>
     </div>
-  );
-}
-
-function StatCard({
-  title,
-  value,
-  change,
-  icon: Icon,
-  iconColor,
-  iconBg,
-}: {
-  title: string;
-  value: string;
-  change: number;
-  icon: React.ElementType;
-  iconColor: string;
-  iconBg: string;
-}) {
-  const isPositive = change >= 0;
-
-  return (
-    <Card>
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className={`p-3 rounded-xl ${iconBg}`}>
-            <Icon className={`w-6 h-6 ${iconColor}`} />
-          </div>
-          <div className="flex items-center gap-1">
-            {isPositive ? (
-              <ArrowUp className="w-4 h-4 text-green-600" />
-            ) : (
-              <ArrowDown className="w-4 h-4 text-red-600" />
-            )}
-            <span className={`text-sm font-medium ${
-              isPositive ? 'text-green-600' : 'text-red-600'
-            }`}>
-              {Math.abs(change)}%
-            </span>
-          </div>
-        </div>
-        <h3 className="text-sm text-gray-600 mb-1">{title}</h3>
-        <p className="text-2xl font-bold text-gray-900">{value}</p>
-      </CardContent>
-    </Card>
   );
 }

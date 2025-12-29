@@ -77,8 +77,8 @@ export function MobilePaymentSheet({ isOpen, onClose, items, total, onConfirm }:
           </button>
         </div>
 
-        <div className="overflow-y-auto max-h-[calc(90vh-80px)] pb-safe">
-          <div className="p-4 space-y-5">
+        <div className="overflow-y-auto max-h-[calc(90vh-80px)]">
+          <div className="p-4 pb-24 space-y-5">
             {/* Order Summary */}
             <div className="p-4 bg-amber-50 rounded-2xl">
               <div className="flex justify-between items-center">
@@ -258,7 +258,7 @@ export function PaymentSuccessSheet({
 
       {/* Sheet */}
       <div className="relative mt-auto bg-white rounded-t-3xl max-h-[90vh] overflow-hidden animate-slide-up">
-        <div className="p-6 space-y-6">
+        <div className="p-6 pb-24 space-y-6">
           {/* Success Icon */}
           <div className="flex flex-col items-center pt-4">
             <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-4">

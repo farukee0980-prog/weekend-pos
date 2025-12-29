@@ -1,4 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## POS Freedom (LIFF Enabled)
+
+This is a Next.js POS demo with LINE LIFF login and a staff-only guard.
+
+### Environment Variables
+
+Copy `.env.example` to `.env.local` and set:
+
+```
+NEXT_PUBLIC_LINE_LIFF_ID=2008793367-BTVBxUCA
+LINE_CHANNEL_ID=2008793367
+NEXT_PUBLIC_STAFF_LINE_USER_IDS=Uxxxxxxxxx,Uyyyyyyyyy
+```
+
+`NEXT_PUBLIC_STAFF_LINE_USER_IDS` is a comma-separated list of allowed LINE userIds.
+
+### LIFF Console Setup
+
+- Create a LINE Login channel and a LIFF app
+- Set LIFF Endpoint URL to your domain path: `https://YOUR-DOMAIN/pos`
+- Add `https://YOUR-DOMAIN` to callback/redirect URLs as required
+- Use the LIFF link: `https://liff.line.me/2008793367-BTVBxUCA`
+
+### Local Development
+
+Run dev server:
+
+```bash
+npm run dev
+```
+
+Expose HTTPS for LIFF testing (example with ngrok):
+
+```bash
+ngrok http 3000
+```
+
+Then set your LIFF Endpoint URL to `https://<NGROK_DOMAIN>/pos` and open the LIFF link.
+
+### Routes
+
+- `/pos` POS main page (protected by staff guard)
+- `/orders` Orders list (demo)
+- `/products` Products list (demo)
+
+### Notes / TODO
+
+- Persist orders to a database (currently marked TODO in `app/(dashboard)/pos/page.tsx`)
+- Improve receipt printing (currently uses `window.print()`)
+
+---
+Original Next.js README follows.
 
 ## Getting Started
 

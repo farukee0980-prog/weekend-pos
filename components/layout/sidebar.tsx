@@ -18,7 +18,7 @@ const navigation = [
   { name: 'สินค้า', href: '/products', icon: Package },
   { name: 'ออเดอร์', href: '/orders', icon: ClipboardList },
   { name: 'รายงาน', href: '/reports', icon: BarChart3 },
-  { name: 'ตั้งค่า', href: '/settings', icon: Settings },
+  
 ];
 
 export function Sidebar() {
@@ -54,7 +54,7 @@ export function Sidebar() {
                   : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
               )}
             >
-              <Icon className={cn('w-5 h-5', isActive ? 'text-amber-600' : 'text-gray-400')} />
+              <Icon className={cn('w-5 h-5', isActive ? 'text-amber-600' : 'text-gray-600')} />
               {item.name}
             </Link>
           );
