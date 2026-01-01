@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Search, Eye, Printer, Filter, Clock, ShoppingCart, DollarSign, CheckCircle, XCircle, Store, ChevronRight, Banknote, Smartphone, Circle, List, Calendar, Info } from 'lucide-react';
+import { Search, Eye, Printer, Filter, Clock, ShoppingCart, DollarSign, CheckCircle, XCircle, Store, ChevronRight, ChevronDown, Banknote, Smartphone, Circle, List, Calendar, Info } from 'lucide-react';
 import { Header } from '@/components/layout';
 import { Card, CardContent, Badge, Button, Modal } from '@/components/ui';
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
@@ -34,6 +34,7 @@ export default function OrdersPage() {
   const [cancelingOrder, setCancelingOrder] = useState<Order | null>(null);
   const [selectedSession, setSelectedSession] = useState<SessionWithOrders | null>(null);
   const [showSessionsList, setShowSessionsList] = useState(false);
+  const [showSessionDropdown, setShowSessionDropdown] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
 
@@ -289,7 +290,7 @@ export default function OrdersPage() {
           </Card>
         )}
 
-        {/* Session Filter */}
+        {/* Search and Filters */}
         <div className="flex flex-col md:flex-row gap-3 md:gap-4">
           <div className="relative flex-1 md:max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
@@ -302,28 +303,79 @@ export default function OrdersPage() {
             />
           </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
-            <select
-              value={selectedSessionFilter}
-              onChange={(e) => setSelectedSessionFilter(e.target.value)}
-              className="px-3 py-2 rounded-lg border border-gray-300 text-sm font-medium bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-            >
-              {currentSession && <option value="current">● รอบปัจจุบัน</option>}
-              <option value="all">☰ ทุกรอบ</option>
-              {pastSessions.map((session) => (
-                <option key={session.id} value={session.id}>
-                  {new Date(session.opened_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} - {formatCurrency(session.total_revenue ?? 0)}
-                </option>
-              ))}
-            </select>
+          {/* Session Filter Dropdown */}
+          <div className="relative">
             <button
-              onClick={() => setShowSessionsList(true)}
-              className="px-3 py-2 rounded-lg border border-gray-300 text-sm font-medium bg-white hover:bg-gray-50 flex items-center gap-2"
-              title="ดูทุกรอบ"
+              onClick={() => setShowSessionDropdown(!showSessionDropdown)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 text-sm font-medium bg-white hover:bg-gray-50 min-w-[180px]"
             >
-              <Calendar className="w-4 h-4" />
-              <span className="hidden sm:inline">ประวัติรอบ</span>
+              {selectedSessionFilter === 'all' && (
+                <><List className="w-4 h-4 text-amber-600" /><span>ทุกรอบ</span></>
+              )}
+              {selectedSessionFilter === 'current' && (
+                <><div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /><span>รอบปัจจุบัน</span></>
+              )}
+              {selectedSessionFilter !== 'all' && selectedSessionFilter !== 'current' && (
+                <><Clock className="w-4 h-4 text-gray-500" /><span>{pastSessions.find(s => s.id === selectedSessionFilter) ? new Date(pastSessions.find(s => s.id === selectedSessionFilter)!.opened_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) : 'เลือกรอบ'}</span></>
+              )}
+              <ChevronDown className={cn("w-4 h-4 ml-auto transition-transform", showSessionDropdown && "rotate-180")} />
             </button>
+
+            {showSessionDropdown && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowSessionDropdown(false)} />
+                <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-20 py-1 max-h-72 overflow-y-auto">
+                  {/* All */}
+                  <button
+                    onClick={() => { setSelectedSessionFilter('all'); setShowSessionDropdown(false); }}
+                    className={cn("w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 text-left", selectedSessionFilter === 'all' && "bg-amber-50")}
+                  >
+                    <List className="w-4 h-4 text-amber-600" />
+                    <span className="flex-1">ทุกรอบ</span>
+                    <span className="text-xs text-gray-500">{pastSessions.length + (currentSession ? 1 : 0)} รอบ</span>
+                  </button>
+
+                  {/* Current */}
+                  {currentSession && (
+                    <button
+                      onClick={() => { setSelectedSessionFilter('current'); setShowSessionDropdown(false); }}
+                      className={cn("w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 text-left border-t", selectedSessionFilter === 'current' && "bg-green-50")}
+                    >
+                      <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                      <span className="flex-1">รอบปัจจุบัน</span>
+                      <span className="text-xs text-green-600 font-medium">{formatCurrency(currentSession.total_revenue ?? 0)}</span>
+                    </button>
+                  )}
+
+                  {/* Past Sessions */}
+                  {pastSessions.length > 0 && (
+                    <div className="border-t">
+                      <div className="px-3 py-1.5 text-xs text-gray-500 bg-gray-50">รอบที่ผ่านมา</div>
+                      {pastSessions.slice(0, 10).map((session) => (
+                        <button
+                          key={session.id}
+                          onClick={() => { setSelectedSessionFilter(session.id); setShowSessionDropdown(false); }}
+                          className={cn("w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 text-left", selectedSessionFilter === session.id && "bg-blue-50")}
+                        >
+                          <Clock className="w-4 h-4 text-gray-400" />
+                          <span className="flex-1 text-sm">{new Date(session.opened_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</span>
+                          <span className="text-xs text-gray-500">{formatCurrency(session.total_revenue ?? 0)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* View All */}
+                  <button
+                    onClick={() => { setShowSessionsList(true); setShowSessionDropdown(false); }}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-amber-700 hover:bg-amber-50 border-t"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    ดูทุกรอบ
+                  </button>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
