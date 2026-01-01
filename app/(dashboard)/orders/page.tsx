@@ -40,7 +40,7 @@ export default function OrdersPage() {
   // Session-based data
   const [currentSession, setCurrentSession] = useState<SessionWithOrders | null>(null);
   const [pastSessions, setPastSessions] = useState<SessionWithOrders[]>([]);
-  const [selectedSessionFilter, setSelectedSessionFilter] = useState<string | 'current' | 'all'>('current');
+  const [selectedSessionFilter, setSelectedSessionFilter] = useState<string | 'current' | 'all'>('all');
 
   useEffect(() => {
     async function loadData() {
