@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Search, Eye, Printer, Filter, Clock, ShoppingCart, DollarSign, CheckCircle, XCircle, Store, ChevronRight, Banknote, Smartphone, Circle, List } from 'lucide-react';
+import { Search, Eye, Printer, Filter, Clock, ShoppingCart, DollarSign, CheckCircle, XCircle, Store, ChevronRight, Banknote, Smartphone, Circle, List, Calendar, Info } from 'lucide-react';
 import { Header } from '@/components/layout';
 import { Card, CardContent, Badge, Button, Modal } from '@/components/ui';
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
@@ -32,6 +32,8 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [cancelingOrder, setCancelingOrder] = useState<Order | null>(null);
+  const [selectedSession, setSelectedSession] = useState<SessionWithOrders | null>(null);
+  const [showSessionsList, setShowSessionsList] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
 
@@ -314,6 +316,14 @@ export default function OrdersPage() {
                 </option>
               ))}
             </select>
+            <button
+              onClick={() => setShowSessionsList(true)}
+              className="px-3 py-2 rounded-lg border border-gray-300 text-sm font-medium bg-white hover:bg-gray-50 flex items-center gap-2"
+              title="ดูทุกรอบ"
+            >
+              <Calendar className="w-4 h-4" />
+              <span className="hidden sm:inline">ประวัติรอบ</span>
+            </button>
           </div>
 
           <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
@@ -528,6 +538,33 @@ export default function OrdersPage() {
         <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)} onPrint={handlePrintOrder} />
       )}
 
+      {/* Sessions List Modal */}
+      {showSessionsList && (
+        <SessionsListModal
+          currentSession={currentSession}
+          pastSessions={pastSessions}
+          onClose={() => setShowSessionsList(false)}
+          onSelectSession={(session) => {
+            setSelectedSession(session);
+            setShowSessionsList(false);
+          }}
+          onFilterSession={(sessionId) => {
+            setSelectedSessionFilter(sessionId);
+            setShowSessionsList(false);
+          }}
+          formatSessionDate={formatSessionDate}
+        />
+      )}
+
+      {/* Session Detail Modal */}
+      {selectedSession && (
+        <SessionDetailModal
+          session={selectedSession}
+          onClose={() => setSelectedSession(null)}
+          formatSessionDate={formatSessionDate}
+        />
+      )}
+
       {/* Cancel Confirm Modal */}
       {cancelingOrder && (
         <Modal isOpen={true} onClose={() => setCancelingOrder(null)} title="ยืนยันการยกเลิก">
@@ -554,6 +591,256 @@ export default function OrdersPage() {
         </Modal>
       )}
     </div>
+  );
+}
+
+// Sessions List Modal
+interface SessionsListModalProps {
+  currentSession: SessionWithOrders | null;
+  pastSessions: SessionWithOrders[];
+  onClose: () => void;
+  onSelectSession: (session: SessionWithOrders) => void;
+  onFilterSession: (sessionId: string) => void;
+  formatSessionDate: (dateStr: string) => string;
+}
+
+function SessionsListModal({ 
+  currentSession, 
+  pastSessions, 
+  onClose, 
+  onSelectSession, 
+  onFilterSession,
+  formatSessionDate 
+}: SessionsListModalProps) {
+  const allSessions = [
+    ...(currentSession ? [{ ...currentSession, isCurrent: true }] : []),
+    ...pastSessions.map(s => ({ ...s, isCurrent: false }))
+  ];
+
+  const totalRevenue = allSessions.reduce((sum, s) => sum + (s.total_revenue ?? 0), 0);
+  const totalOrders = allSessions.reduce((sum, s) => sum + (s.total_orders ?? 0), 0);
+
+  return (
+    <Modal isOpen={true} onClose={onClose} title="ประวัติรอบการขาย" size="lg">
+      <div className="space-y-4">
+        {/* Summary */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-amber-50 rounded-lg p-3 text-center">
+            <p className="text-xs text-amber-700">รอบทั้งหมด</p>
+            <p className="text-xl font-bold text-amber-600">{allSessions.length}</p>
+          </div>
+          <div className="bg-green-50 rounded-lg p-3 text-center">
+            <p className="text-xs text-green-700">ออเดอร์รวม</p>
+            <p className="text-xl font-bold text-green-600">{totalOrders}</p>
+          </div>
+          <div className="bg-blue-50 rounded-lg p-3 text-center">
+            <p className="text-xs text-blue-700">ยอดขายรวม</p>
+            <p className="text-xl font-bold text-blue-600">{formatCurrency(totalRevenue)}</p>
+          </div>
+        </div>
+
+        {/* Sessions List */}
+        <div className="max-h-[400px] overflow-y-auto space-y-2">
+          {allSessions.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Calendar className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p>ยังไม่มีประวัติรอบการขาย</p>
+            </div>
+          ) : (
+            allSessions.map((session) => (
+              <div
+                key={session.id}
+                className={cn(
+                  "p-4 rounded-lg border transition-colors",
+                  session.isCurrent 
+                    ? "border-green-200 bg-green-50" 
+                    : "border-gray-200 bg-white hover:bg-gray-50"
+                )}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    {session.isCurrent ? (
+                      <div className="flex items-center gap-1.5 px-2 py-0.5 bg-green-100 rounded-full">
+                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                        <span className="text-xs font-medium text-green-700">กำลังเปิด</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 px-2 py-0.5 bg-gray-100 rounded-full">
+                        <div className="w-2 h-2 rounded-full bg-gray-400"></div>
+                        <span className="text-xs font-medium text-gray-600">ปิดแล้ว</span>
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-sm font-semibold text-amber-600">
+                    {formatCurrency(session.total_revenue ?? 0)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-sm">
+                  <div>
+                    <p className="text-gray-900 font-medium">
+                      {formatSessionDate(session.opened_at)}
+                    </p>
+                    {session.closed_at && (
+                      <p className="text-xs text-gray-500">
+                        ปิด: {formatSessionDate(session.closed_at)}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right text-gray-600">
+                    <p>{session.total_orders ?? 0} ออเดอร์</p>
+                    <p className="text-xs">{session.total_items ?? 0} ชิ้น</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => onFilterSession(session.isCurrent ? 'current' : session.id)}
+                    className="flex-1 px-3 py-1.5 text-sm font-medium rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100"
+                  >
+                    ดูออเดอร์
+                  </button>
+                  <button
+                    onClick={() => onSelectSession(session)}
+                    className="px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  >
+                    <Info className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <Button variant="outline" onClick={onClose} className="w-full">
+          ปิด
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+// Session Detail Modal
+interface SessionDetailModalProps {
+  session: SessionWithOrders;
+  onClose: () => void;
+  formatSessionDate: (dateStr: string) => string;
+}
+
+function SessionDetailModal({ session, onClose, formatSessionDate }: SessionDetailModalProps) {
+  const completedOrders = session.orders?.filter(o => o.status === 'completed') || [];
+  const cancelledOrders = session.orders?.filter(o => o.status === 'cancelled') || [];
+  
+  const cashRevenue = completedOrders
+    .filter(o => o.payment_method === 'cash')
+    .reduce((sum, o) => sum + o.total, 0);
+  const transferRevenue = completedOrders
+    .filter(o => o.payment_method === 'transfer')
+    .reduce((sum, o) => sum + o.total, 0);
+
+  // Calculate duration
+  const startTime = new Date(session.opened_at);
+  const endTime = session.closed_at ? new Date(session.closed_at) : new Date();
+  const durationMs = endTime.getTime() - startTime.getTime();
+  const durationHours = Math.floor(durationMs / (1000 * 60 * 60));
+  const durationMinutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+
+  return (
+    <Modal isOpen={true} onClose={onClose} title="รายละเอียดรอบการขาย" size="lg">
+      <div className="space-y-4">
+        {/* Status */}
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-gray-500">สถานะ</p>
+            {!session.closed_at ? (
+              <div className="flex items-center gap-2 mt-1">
+                <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse"></div>
+                <span className="font-semibold text-green-700">กำลังเปิด</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 mt-1">
+                <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                <span className="font-semibold text-gray-700">ปิดแล้ว</span>
+              </div>
+            )}
+          </div>
+          <div className="text-right">
+            <p className="text-sm text-gray-500">ระยะเวลา</p>
+            <p className="font-semibold text-gray-900">{durationHours} ชม. {durationMinutes} นาที</p>
+          </div>
+        </div>
+
+        {/* Time */}
+        <div className="p-4 bg-gray-50 rounded-lg">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-gray-500">เปิดร้าน</p>
+              <p className="font-medium text-gray-900">{formatSessionDate(session.opened_at)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">ปิดร้าน</p>
+              <p className="font-medium text-gray-900">
+                {session.closed_at ? formatSessionDate(session.closed_at) : '-'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="p-4 bg-amber-50 rounded-lg">
+            <p className="text-xs text-amber-700">ยอดขายรวม</p>
+            <p className="text-2xl font-bold text-amber-600">{formatCurrency(session.total_revenue ?? 0)}</p>
+          </div>
+          <div className="p-4 bg-blue-50 rounded-lg">
+            <p className="text-xs text-blue-700">จำนวนออเดอร์</p>
+            <p className="text-2xl font-bold text-blue-600">{session.total_orders ?? 0}</p>
+          </div>
+        </div>
+
+        {/* Payment Breakdown */}
+        <div className="p-4 border border-gray-200 rounded-lg space-y-3">
+          <p className="font-semibold text-gray-900">แยกตามช่องทางชำระ</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Banknote className="w-5 h-5 text-green-600" />
+              <span className="text-gray-700">เงินสด</span>
+            </div>
+            <span className="font-semibold text-green-600">{formatCurrency(cashRevenue)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Smartphone className="w-5 h-5 text-blue-600" />
+              <span className="text-gray-700">โอนเงิน</span>
+            </div>
+            <span className="font-semibold text-blue-600">{formatCurrency(transferRevenue)}</span>
+          </div>
+        </div>
+
+        {/* Orders Breakdown */}
+        <div className="p-4 border border-gray-200 rounded-lg space-y-3">
+          <p className="font-semibold text-gray-900">สถานะออเดอร์</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+              <span className="text-gray-700">สำเร็จ</span>
+            </div>
+            <span className="font-semibold text-gray-900">{completedOrders.length} รายการ</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <XCircle className="w-5 h-5 text-red-600" />
+              <span className="text-gray-700">ยกเลิก</span>
+            </div>
+            <span className="font-semibold text-gray-900">{cancelledOrders.length} รายการ</span>
+          </div>
+        </div>
+
+        <Button variant="outline" onClick={onClose} className="w-full">
+          ปิด
+        </Button>
+      </div>
+    </Modal>
   );
 }
 
