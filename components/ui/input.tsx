@@ -19,10 +19,12 @@ export function Input({ label, error, className, id, ...props }: InputProps) {
       <input
         id={inputId}
         className={cn(
-          'w-full px-3 py-2 rounded-lg border border-gray-300',
+          'w-full px-3 py-2.5 sm:py-2 rounded-lg border border-gray-300',
           'focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent',
           'placeholder:text-gray-400',
           'disabled:bg-gray-50 disabled:cursor-not-allowed',
+          'text-base', // Prevent zoom on iOS
+          'min-h-[44px] sm:min-h-[40px]', // Touch-friendly height
           error && 'border-red-500 focus:ring-red-500',
           className
         )}

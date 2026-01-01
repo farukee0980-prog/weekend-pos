@@ -26,10 +26,10 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-200 p-4">
-      <Card className="w-full max-w-sm p-6 space-y-6">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-200 p-4 safe-area-top safe-area-bottom">
+      <Card className="w-full max-w-sm p-5 sm:p-6 space-y-5 sm:space-y-6">
         <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold text-gray-800">เข้าสู่ระบบ POS</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-800">เข้าสู่ระบบ POS</h1>
           <p className="text-sm text-gray-500">สำหรับเจ้าของร้านเท่านั้น</p>
         </div>
 

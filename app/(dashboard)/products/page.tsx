@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Plus, Search, Edit, Trash2, Coffee, Package, Image as ImageIcon, FolderPlus, X, AlertTriangle, Check } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Coffee, Package, Image as ImageIcon, FolderPlus, X, AlertTriangle, Check, Star } from 'lucide-react';
 import { Header } from '@/components/layout';
 import { Button, Card, CardContent, Modal, Badge } from '@/components/ui';
 import { formatCurrency, cn } from '@/lib/utils';
 import { Product, Category } from '@/lib/types';
 import { getAllProducts, getAllCategories, createProduct, updateProduct, deleteProduct, createCategory, deleteCategory } from '@/lib/db/products';
 import { supabase } from '@/lib/supabase';
+import { getPointsConfig } from '@/lib/db/settings';
 
 export default function ProductsPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -22,12 +23,14 @@ export default function ProductsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
+  const [defaultPointsPerItem, setDefaultPointsPerItem] = useState(1);
 
   const loadData = async () => {
     try {
-      const [productsRes, categoriesRes] = await Promise.all([
+      const [productsRes, categoriesRes, pointsConfigRes] = await Promise.all([
         getAllProducts(),
         getAllCategories(),
+        getPointsConfig(),
       ]);
 
       if (productsRes.error || categoriesRes.error) {
@@ -35,6 +38,10 @@ export default function ProductsPage() {
       } else {
         setProducts(productsRes.data || []);
         setCategories(categoriesRes.data || []);
+      }
+      
+      if (pointsConfigRes.data) {
+        setDefaultPointsPerItem(pointsConfigRes.data.default_points_per_item);
       }
     } catch (err) {
       console.error(err);
@@ -318,6 +325,7 @@ export default function ProductsPage() {
         product={editingProduct}
         categories={categories}
         onSave={handleSaveProduct}
+        defaultPointsPerItem={defaultPointsPerItem}
       />
 
       {/* Delete Confirm Modal */}
@@ -390,9 +398,10 @@ interface ProductFormModalProps {
   product: Product | null;
   categories: Category[];
   onSave: (data: Partial<Product>) => Promise<void>;
+  defaultPointsPerItem?: number;
 }
 
-function ProductFormModal({ isOpen, onClose, product, categories, onSave }: ProductFormModalProps) {
+function ProductFormModal({ isOpen, onClose, product, categories, onSave, defaultPointsPerItem = 1 }: ProductFormModalProps) {
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [categoryId, setCategoryId] = useState('');
@@ -402,6 +411,7 @@ function ProductFormModal({ isOpen, onClose, product, categories, onSave }: Prod
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [pointsPerItem, setPointsPerItem] = useState<string>(defaultPointsPerItem.toString());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -412,6 +422,7 @@ function ProductFormModal({ isOpen, onClose, product, categories, onSave }: Prod
       setIsAvailable(product.is_available);
       setImageUrl(product.image_url || '');
       setImagePreview(product.image_url || null);
+      setPointsPerItem((product.points_per_item || defaultPointsPerItem).toString());
     } else {
       setName('');
       setPrice('');
@@ -419,9 +430,10 @@ function ProductFormModal({ isOpen, onClose, product, categories, onSave }: Prod
       setIsAvailable(true);
       setImageUrl('');
       setImagePreview(null);
+      setPointsPerItem(defaultPointsPerItem.toString());
     }
     setImageFile(null);
-  }, [product, isOpen]);
+  }, [product, isOpen, defaultPointsPerItem]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -476,6 +488,7 @@ function ProductFormModal({ isOpen, onClose, product, categories, onSave }: Prod
         category_id: categoryId,
         is_available: isAvailable,
         image_url: uploadedUrl || undefined,
+        points_per_item: parseInt(pointsPerItem) || defaultPointsPerItem,
       });
       onClose();
     } finally {
@@ -563,6 +576,24 @@ function ProductFormModal({ isOpen, onClose, product, categories, onSave }: Prod
               ))}
             </select>
           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-900 mb-1 flex items-center gap-2">
+            <Star className="w-4 h-4 text-amber-500" />
+            แต้มสะสมต่อชิ้น
+          </label>
+          <input
+            type="number"
+            value={pointsPerItem}
+            onChange={(e) => setPointsPerItem(e.target.value)}
+            placeholder={defaultPointsPerItem.toString()}
+            min="0"
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder:text-gray-600"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            จำนวนแต้มที่ลูกค้าจะได้รับเมื่อซื้อสินค้านี้ 1 ชิ้น (ค่าเริ่มต้น: {defaultPointsPerItem})
+          </p>
         </div>
 
         <div className="flex items-center gap-2">

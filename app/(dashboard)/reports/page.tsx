@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Header } from '@/components/layout';
 import { Card, CardContent, Badge, Modal } from '@/components/ui';
 import { formatCurrency } from '@/lib/utils';
@@ -22,7 +23,8 @@ import {
   Store,
   Power,
   PowerOff,
-  CalendarClock
+  CalendarClock,
+  Settings
 } from 'lucide-react';
 
 const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || '1234';
@@ -756,6 +758,28 @@ export default function ReportsPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Settings Link - Mobile Only */}
+        <div className="md:hidden">
+          <Link href="/settings">
+            <Card className="hover:bg-gray-50 transition-colors">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-gray-100 rounded-xl">
+                      <Settings className="w-5 h-5 text-gray-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">ตั้งค่า</p>
+                      <p className="text-xs text-gray-500">ข้อมูลร้าน, แต้มสะสม, ลบข้อมูล</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
       </div>
     </div>

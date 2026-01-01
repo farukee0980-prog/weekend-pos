@@ -10,13 +10,13 @@ const prompt = Prompt({
 });
 
 export const metadata: Metadata = {
-  title: "POS Freedome",
+  title: "Weekend POS",
   description: "ระบบขายหน้าร้านสำหรับธุรกิจขนาดเล็ก",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "POS Freedome",
+    title: "Weekend POS",
   },
   formatDetection: {
     telephone: false,

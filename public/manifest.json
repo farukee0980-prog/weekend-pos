@@ -1,6 +1,6 @@
 {
-  "name": "POS Freedome",
-  "short_name": "POS",
+  "name": "Weekend POS",
+  "short_name": "Weekend POS",
   "description": "ระบบขายหน้าร้านสำหรับธุรกิจขนาดเล็ก",
   "start_url": "/",
   "display": "standalone",

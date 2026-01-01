@@ -8,10 +8,10 @@ const rootDir = join(__dirname, '..');
 const publicDir = join(rootDir, 'public');
 const appDir = join(rootDir, 'app');
 
-const logoPath = join(publicDir, 'logo.jpg');
+const logoPath = join(publicDir, 'weekend.jpg');
 
 async function generateIcons() {
-  console.log('🎨 Generating icons from logo.jpg...\n');
+  console.log('🎨 Generating icons from weekend.jpg...\n');
 
   try {
     // favicon.ico (32x32) - ไปที่ app folder สำหรับ Next.js

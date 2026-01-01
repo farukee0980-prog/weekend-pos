@@ -3,8 +3,10 @@
 import React, { useEffect, useState } from 'react';
 import { Header } from '@/components/layout';
 import { Card, CardContent, Button, Modal } from '@/components/ui';
-import { Store, Save, Printer, Trash2, AlertTriangle } from 'lucide-react';
+import { Store, Save, Printer, Trash2, AlertTriangle, Star, Gift } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { getPointsConfig, savePointsConfig } from '@/lib/db/settings';
+import { PointsConfig } from '@/lib/types';
 
 const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || '1234';
 
@@ -17,6 +19,14 @@ export default function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
+  // Points Config
+  const [pointsConfig, setPointsConfig] = useState<PointsConfig>({
+    points_to_redeem: 100,
+    redeem_value: 40,
+    default_points_per_item: 1,
+  });
+  const [isSavingPoints, setIsSavingPoints] = useState(false);
+  
   // Delete confirmation modal
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
@@ -25,6 +35,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     loadSettings();
+    loadPointsConfigData();
   }, []);
 
   const loadSettings = async () => {
@@ -47,6 +58,30 @@ export default function SettingsPage() {
       console.error('Error loading settings:', err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadPointsConfigData = async () => {
+    const res = await getPointsConfig();
+    if (res.data) {
+      setPointsConfig(res.data);
+    }
+  };
+
+  const handleSavePointsConfig = async () => {
+    setIsSavingPoints(true);
+    try {
+      const res = await savePointsConfig(pointsConfig);
+      if (res.error) {
+        alert('เกิดข้อผิดพลาดในการบันทึก');
+      } else {
+        alert('บันทึกการตั้งค่าแต้มสะสมสำเร็จ');
+      }
+    } catch (err) {
+      console.error('Error saving points config:', err);
+      alert('เกิดข้อผิดพลาดในการบันทึก');
+    } finally {
+      setIsSavingPoints(false);
     }
   };
 
@@ -434,6 +469,103 @@ export default function SettingsPage() {
                   className="w-full px-4 py-2.5 rounded-lg border-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 placeholder:text-gray-500"
                 />
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Points/Loyalty Settings */}
+        <Card>
+          <CardContent className="p-4 md:p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-3 bg-amber-100 rounded-xl">
+                <Star className="w-6 h-6 text-amber-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">ระบบแต้มสะสม</h2>
+                <p className="text-sm text-gray-500">ตั้งค่าการสะสมและแลกแต้ม</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-900 mb-2">
+                  แต้มเริ่มต้นต่อสินค้า (ชิ้น)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={pointsConfig.default_points_per_item}
+                  onChange={(e) => setPointsConfig({
+                    ...pointsConfig,
+                    default_points_per_item: parseInt(e.target.value) || 0,
+                  })}
+                  placeholder="1"
+                  className="w-full px-4 py-2.5 rounded-lg border-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  จำนวนแต้มที่ลูกค้าได้รับต่อการซื้อสินค้า 1 ชิ้น (สามารถตั้งแยกรายสินค้าได้)
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 mb-2">
+                    <div className="flex items-center gap-2">
+                      <Gift className="w-4 h-4 text-amber-500" />
+                      แต้มที่ต้องครบเพื่อแลก
+                    </div>
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={pointsConfig.points_to_redeem}
+                    onChange={(e) => setPointsConfig({
+                      ...pointsConfig,
+                      points_to_redeem: parseInt(e.target.value) || 100,
+                    })}
+                    placeholder="100"
+                    className="w-full px-4 py-2.5 rounded-lg border-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">เช่น ครบ 100 แต้ม</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 mb-2">
+                    มูลค่าส่วนลด (บาท)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={pointsConfig.redeem_value}
+                    onChange={(e) => setPointsConfig({
+                      ...pointsConfig,
+                      redeem_value: parseInt(e.target.value) || 40,
+                    })}
+                    placeholder="40"
+                    className="w-full px-4 py-2.5 rounded-lg border-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">ส่วนลดที่ได้เมื่อแลกแต้มครบ</p>
+                </div>
+              </div>
+
+              {/* Preview */}
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4">
+                <p className="text-sm text-amber-800">
+                  <strong>ตัวอย่าง:</strong> สะสมครบ{' '}
+                  <span className="font-bold">{pointsConfig.points_to_redeem}</span> แต้ม = ส่วนลด{' '}
+                  <span className="font-bold">{pointsConfig.redeem_value}</span> บาท
+                </p>
+              </div>
+
+              <Button
+                onClick={handleSavePointsConfig}
+                disabled={isSavingPoints}
+                variant="outline"
+                className="w-full md:w-auto"
+              >
+                <Save className="w-5 h-5 mr-2" />
+                {isSavingPoints ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่าแต้ม'}
+              </Button>
             </div>
           </CardContent>
         </Card>

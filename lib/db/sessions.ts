@@ -74,7 +74,7 @@ export async function openSession(openedBy?: string): Promise<ApiResponse<StoreS
 
     const { data, error } = await supabase
       .from(TABLES.SESSIONS)
-      .insert([{ opened_at: now, opened_by: openedBy ?? null } as any])
+      .insert([{ opened_at: now }])
       .select()
       .single();
 

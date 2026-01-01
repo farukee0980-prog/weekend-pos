@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { Coffee, ChevronLeft } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
 interface MobileHeaderProps {
@@ -33,11 +34,19 @@ export function MobileHeader({
             <ChevronLeft className="w-6 h-6" />
           </button>
         ) : (
-          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-600">
-            <Coffee className="w-5 h-5 text-white" />
+          <div className="flex items-center justify-center w-8 h-8 rounded-lg overflow-hidden">
+            <Image
+              src="/weekend.jpg"
+              alt="Weekend POS"
+              width={32}
+              height={32}
+              className="object-cover"
+            />
           </div>
         )}
-        <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
+        <h1 className="text-lg font-semibold text-gray-900">
+          {title === 'POS' ? 'Weekend POS' : title}
+        </h1>
       </div>
 
       {rightContent && (

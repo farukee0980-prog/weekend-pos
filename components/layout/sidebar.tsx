@@ -10,6 +10,7 @@ import {
   BarChart3,
   Settings,
   Coffee,
+  Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -17,6 +18,7 @@ const navigation = [
   { name: 'POS', href: '/pos', icon: LayoutGrid },
   { name: 'สินค้า', href: '/products', icon: Package },
   { name: 'ออเดอร์', href: '/orders', icon: ClipboardList },
+  { name: 'สมาชิก', href: '/members', icon: Users },
   { name: 'รายงาน', href: '/reports', icon: BarChart3 },
   { name: 'ตั้งค่า', href: '/settings', icon: Settings },
 ];
@@ -32,7 +34,7 @@ export function Sidebar() {
           <Coffee className="w-6 h-6 text-white" />
         </div>
         <div>
-          <h1 className="text-lg font-bold text-gray-900">Freedome</h1>
+          <h1 className="text-lg font-bold text-gray-900">Weekend</h1>
           <p className="text-xs text-gray-500">POS System</p>
         </div>
       </div>

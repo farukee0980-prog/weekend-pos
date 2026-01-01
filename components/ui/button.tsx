@@ -18,9 +18,9 @@ const variants = {
 };
 
 const sizes = {
-  sm: 'px-3 py-1.5 text-sm',
-  md: 'px-4 py-2 text-base',
-  lg: 'px-6 py-3 text-lg',
+  sm: 'px-3 py-1.5 text-sm min-h-[36px]',
+  md: 'px-4 py-2.5 text-base min-h-[44px]',
+  lg: 'px-6 py-3 text-lg min-h-[52px]',
 };
 
 export function Button({
@@ -37,6 +37,7 @@ export function Button({
         'inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-colors',
         'focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2',
         'disabled:opacity-50 disabled:cursor-not-allowed',
+        'touch-manipulation select-none',
         variants[variant],
         sizes[size],
         className

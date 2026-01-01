@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Banknote, Smartphone, Check, X, Printer } from 'lucide-react';
-import { CartItem, PaymentMethod } from '@/lib/types';
+import { Banknote, Smartphone, Check, X, Printer, Users, Star, Gift } from 'lucide-react';
+import { CartItem, PaymentMethod, Member, PointsConfig } from '@/lib/types';
 import { formatCurrency, cn } from '@/lib/utils';
 import { Button } from '@/components/ui';
 import { printReceipt, ReceiptData } from './receipt';
+import { MemberSearch, MemberFormModal, PointsRedeemSection } from '@/components/members';
 
 interface MobilePaymentSheetProps {
   isOpen: boolean;
@@ -13,6 +14,14 @@ interface MobilePaymentSheetProps {
   items: CartItem[];
   total: number;
   onConfirm: (paymentMethod: PaymentMethod, received: number) => void;
+  // Member props
+  selectedMember?: Member | null;
+  onSelectMember?: (member: Member | null) => void;
+  onAddNewMember?: (phone?: string) => void;
+  pointsConfig?: PointsConfig;
+  redeemCount?: number;
+  onRedeemCountChange?: (count: number) => void;
+  pointsDiscount?: number;
 }
 
 const paymentMethods: { id: PaymentMethod; name: string; icon: React.ElementType; description: string }[] = [
@@ -22,16 +31,32 @@ const paymentMethods: { id: PaymentMethod; name: string; icon: React.ElementType
 
 const quickAmounts = [20, 50, 100, 500, 1000];
 
-export function MobilePaymentSheet({ isOpen, onClose, items, total, onConfirm }: MobilePaymentSheetProps) {
+export function MobilePaymentSheet({ 
+  isOpen, 
+  onClose, 
+  items, 
+  total, 
+  onConfirm,
+  selectedMember,
+  onSelectMember,
+  onAddNewMember,
+  pointsConfig,
+  redeemCount = 0,
+  onRedeemCountChange,
+  pointsDiscount = 0,
+}: MobilePaymentSheetProps) {
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('cash');
   const [receivedAmount, setReceivedAmount] = useState<string>(total.toString());
+  
+  // Final total after points discount
+  const finalTotal = Math.max(0, total - pointsDiscount);
 
   const received = parseFloat(receivedAmount) || 0;
-  const change = received - total;
+  const change = received - finalTotal;
 
   const handleConfirm = () => {
-    onConfirm(selectedMethod, selectedMethod === 'transfer' ? total : received);
-    setReceivedAmount(total.toString());
+    onConfirm(selectedMethod, selectedMethod === 'transfer' ? finalTotal : received);
+    setReceivedAmount(finalTotal.toString());
     setSelectedMethod('cash');
   };
 
@@ -40,7 +65,7 @@ export function MobilePaymentSheet({ isOpen, onClose, items, total, onConfirm }:
   };
 
   const handleExactAmount = () => {
-    setReceivedAmount(total.toString());
+    setReceivedAmount(finalTotal.toString());
   };
 
   const handleNumberPad = (value: string) => {
@@ -80,12 +105,51 @@ export function MobilePaymentSheet({ isOpen, onClose, items, total, onConfirm }:
 
         <div className="overflow-y-auto max-h-[calc(90vh-80px)]">
           <div className="p-4 pb-24 space-y-5">
+            {/* Member Selection */}
+            {onSelectMember && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  สมาชิก (สะสมแต้ม)
+                </label>
+                <MemberSearch
+                  selectedMember={selectedMember || null}
+                  onSelectMember={onSelectMember}
+                  onAddNew={onAddNewMember || (() => {})}
+                />
+              </div>
+            )}
+
+            {/* Points Redeem Section */}
+            {selectedMember && pointsConfig && onRedeemCountChange && (
+              <PointsRedeemSection
+                member={selectedMember}
+                pointsConfig={pointsConfig}
+                redeemCount={redeemCount}
+                onRedeemCountChange={onRedeemCountChange}
+                cartTotal={total}
+              />
+            )}
+
             {/* Order Summary */}
             <div className="p-4 bg-amber-50 rounded-2xl">
-              <div className="flex justify-between items-center">
-                <div>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
                   <p className="text-sm text-amber-700">ยอดรวม ({items.reduce((sum, item) => sum + item.quantity, 0)} รายการ)</p>
-                  <p className="text-3xl font-bold text-amber-600">{formatCurrency(total)}</p>
+                  <p className="text-lg font-semibold text-amber-600">{formatCurrency(total)}</p>
+                </div>
+                {pointsDiscount > 0 && (
+                  <div className="flex justify-between items-center text-green-600">
+                    <p className="text-sm flex items-center gap-1">
+                      <Gift className="w-4 h-4" />
+                      ส่วนลดจากแต้ม
+                    </p>
+                    <p className="font-semibold">-{formatCurrency(pointsDiscount)}</p>
+                  </div>
+                )}
+                <div className="flex justify-between items-center pt-2 border-t border-amber-200">
+                  <p className="font-medium text-amber-800">ยอดชำระ</p>
+                  <p className="text-3xl font-bold text-amber-600">{formatCurrency(finalTotal)}</p>
                 </div>
               </div>
             </div>
@@ -175,7 +239,7 @@ export function MobilePaymentSheet({ isOpen, onClose, items, total, onConfirm }:
                 </div>
 
                 {/* Change Display */}
-                {received >= total && (
+                {received >= finalTotal && (
                   <div className="p-4 bg-green-50 rounded-2xl">
                     <div className="flex justify-between items-center">
                       <span className="text-green-700 font-medium">เงินทอน</span>
@@ -186,12 +250,12 @@ export function MobilePaymentSheet({ isOpen, onClose, items, total, onConfirm }:
                   </div>
                 )}
 
-                {received < total && received > 0 && (
+                {received < finalTotal && received > 0 && (
                   <div className="p-4 bg-red-50 rounded-2xl">
                     <div className="flex justify-between items-center">
                       <span className="text-red-700 font-medium">ยังขาด</span>
                       <span className="text-2xl font-bold text-red-600">
-                        {formatCurrency(total - received)}
+                        {formatCurrency(finalTotal - received)}
                       </span>
                     </div>
                   </div>
@@ -212,11 +276,29 @@ export function MobilePaymentSheet({ isOpen, onClose, items, total, onConfirm }:
               </div>
             )}
 
+            {/* Points Earned Info */}
+            {selectedMember && pointsConfig && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                <div className="flex items-center gap-2 text-amber-700 text-sm">
+                  <Star className="w-4 h-4 fill-amber-500" />
+                  <span>
+                    สมาชิกจะได้รับ{' '}
+                    <strong>
+                      {items.reduce((sum, item) => 
+                        sum + (item.product.points_per_item || pointsConfig.default_points_per_item) * item.quantity, 0
+                      )}
+                    </strong>{' '}
+                    แต้มจากออเดอร์นี้
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Confirm Button */}
             <Button
               onClick={handleConfirm}
               className="w-full h-14 text-lg"
-              disabled={selectedMethod === 'cash' && received < total}
+              disabled={selectedMethod === 'cash' && received < finalTotal}
             >
               <Check className="w-5 h-5" />
               ยืนยันชำระเงิน

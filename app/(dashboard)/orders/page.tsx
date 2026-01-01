@@ -463,6 +463,7 @@ export default function OrdersPage() {
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">เลขออเดอร์</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">เวลา</th>
+                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">สมาชิก</th>
                     <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">รายการ</th>
                     <th className="px-4 py-3 text-right text-sm font-semibold text-gray-600">ยอดรวม</th>
                     <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">ชำระ</th>
@@ -477,11 +478,33 @@ export default function OrdersPage() {
                         <span className="font-mono text-sm text-gray-900">#{order.order_number.slice(-8)}</span>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">{formatDateTime(order.created_at)}</td>
+                      <td className="px-4 py-3">
+                        {order.member_phone ? (
+                          <div className="text-sm">
+                            <p className="text-gray-900">{order.member_phone}</p>
+                            <div className="flex gap-2 text-xs">
+                              {(order.points_earned ?? 0) > 0 && (
+                                <span className="text-green-600">+{order.points_earned}</span>
+                              )}
+                              {(order.points_redeemed ?? 0) > 0 && (
+                                <span className="text-red-600">-{order.points_redeemed}</span>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-sm">-</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-center text-gray-600">
                         {order.items.reduce((sum, item) => sum + item.quantity, 0)} ชิ้น
                       </td>
                       <td className="px-4 py-3 text-right font-semibold text-amber-600">
                         {formatCurrency(order.total)}
+                        {(order.points_discount ?? 0) > 0 && (
+                          <p className="text-xs text-green-600 font-normal">
+                            ส่วนลด -{formatCurrency(order.points_discount ?? 0)}
+                          </p>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-center text-sm text-gray-600">
                         {paymentMethodLabels[order.payment_method]}
@@ -532,6 +555,16 @@ export default function OrdersPage() {
                     <div>
                       <span className="font-mono text-sm font-semibold text-gray-900">#{order.order_number.slice(-8)}</span>
                       <p className="text-xs text-gray-500 mt-1">{formatDateTime(order.created_at)}</p>
+                      {/* Show member badge */}
+                      {order.member_phone && (
+                        <div className="flex items-center gap-1 mt-1 text-xs text-amber-600">
+                          <span>👤</span>
+                          <span>{order.member_phone}</span>
+                          {(order.points_earned ?? 0) > 0 && (
+                            <span className="text-green-600 ml-1">+{order.points_earned}แต้ม</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <Badge variant={statusConfig[order.status].variant}>
                       {statusConfig[order.status].label}
@@ -542,6 +575,12 @@ export default function OrdersPage() {
                       <span>{order.items.reduce((sum, item) => sum + item.quantity, 0)} ชิ้น</span>
                       <span>•</span>
                       <span>{paymentMethodLabels[order.payment_method]}</span>
+                      {(order.points_discount ?? 0) > 0 && (
+                        <>
+                          <span>•</span>
+                          <span className="text-green-600">-{formatCurrency(order.points_discount ?? 0)}</span>
+                        </>
+                      )}
                     </div>
                     <p className="text-lg font-bold text-amber-600">{formatCurrency(order.total)}</p>
                   </div>
@@ -912,6 +951,31 @@ function OrderDetailModal({ order, onClose, onPrint }: OrderDetailModalProps) {
           <Badge variant={statusConfig[order.status].variant}>{statusConfig[order.status].label}</Badge>
         </div>
 
+        {/* Member Info */}
+        {order.member_phone && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center">
+                  <span className="text-amber-700 font-bold text-sm">👤</span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900">สมาชิก</p>
+                  <p className="text-xs text-gray-500">{order.member_phone}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                {(order.points_earned ?? 0) > 0 && (
+                  <p className="text-xs text-green-600">+{order.points_earned} แต้ม</p>
+                )}
+                {(order.points_redeemed ?? 0) > 0 && (
+                  <p className="text-xs text-red-600">ใช้ {order.points_redeemed} แต้ม</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Items */}
         <div className="border border-gray-200 rounded-lg overflow-hidden">
           <table className="w-full">
@@ -940,7 +1004,13 @@ function OrderDetailModal({ order, onClose, onPrint }: OrderDetailModalProps) {
             <span>รวม</span>
             <span>{formatCurrency(order.subtotal)}</span>
           </div>
-          {order.discount > 0 && (
+          {(order.points_discount ?? 0) > 0 && (
+            <div className="flex justify-between text-green-600">
+              <span>ส่วนลดจากแต้ม ({order.points_redeemed} แต้ม)</span>
+              <span>-{formatCurrency(order.points_discount ?? 0)}</span>
+            </div>
+          )}
+          {order.discount > 0 && (order.points_discount ?? 0) === 0 && (
             <div className="flex justify-between text-red-600">
               <span>ส่วนลด</span>
               <span>-{formatCurrency(order.discount)}</span>

@@ -57,8 +57,8 @@ export function ProductGrid({
       </div>
 
       {/* Products Grid */}
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 md:gap-4">
           {filteredProducts.map((product) => (
             <ProductCard
               key={product.id}
@@ -91,8 +91,9 @@ function ProductCard({ product, onClick }: ProductCardProps) {
       disabled={!product.is_available}
       className={cn(
         'group relative flex flex-col bg-white rounded-xl border border-gray-200 overflow-hidden transition-all',
-        'hover:shadow-md hover:border-amber-300',
+        'hover:shadow-md hover:border-amber-300 active:scale-[0.98]',
         'focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2',
+        'touch-manipulation',
         !product.is_available && 'opacity-50 cursor-not-allowed'
       )}
     >
@@ -103,6 +104,7 @@ function ProductCard({ product, onClick }: ProductCardProps) {
             src={product.image_url}
             alt={product.name}
             fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             className="object-cover"
           />
         ) : (
@@ -129,9 +131,9 @@ function ProductCard({ product, onClick }: ProductCardProps) {
       </div>
 
       {/* Info */}
-      <div className="p-3 text-left">
-        <h3 className="font-medium text-gray-900 truncate">{product.name}</h3>
-        <p className="text-amber-600 font-semibold">{formatCurrency(product.price)}</p>
+      <div className="p-2 sm:p-3 text-left">
+        <h3 className="font-medium text-gray-900 truncate text-sm sm:text-base">{product.name}</h3>
+        <p className="text-amber-600 font-semibold text-sm sm:text-base">{formatCurrency(product.price)}</p>
       </div>
     </button>
   );

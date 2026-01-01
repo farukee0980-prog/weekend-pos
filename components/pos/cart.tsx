@@ -1,10 +1,11 @@
 'use client';
 
 import React from 'react';
-import { Minus, Plus, Trash2, ShoppingBag, MessageSquare } from 'lucide-react';
-import { CartItem } from '@/lib/types';
+import { Minus, Plus, Trash2, ShoppingBag, MessageSquare, User, Star } from 'lucide-react';
+import { CartItem, Member } from '@/lib/types';
 import { formatCurrency, cn } from '@/lib/utils';
 import { Button } from '@/components/ui';
+import { MemberSearch } from '@/components/members';
 
 interface CartProps {
   items: CartItem[];
@@ -14,6 +15,9 @@ interface CartProps {
   onUpdateNote: (productId: string, note: string) => void;
   onCheckout: () => void;
   onClearCart: () => void;
+  selectedMember?: Member | null;
+  onSelectMember?: (member: Member | null) => void;
+  onAddNewMember?: () => void;
 }
 
 export function Cart({
@@ -24,6 +28,9 @@ export function Cart({
   onUpdateNote,
   onCheckout,
   onClearCart,
+  selectedMember,
+  onSelectMember,
+  onAddNewMember,
 }: CartProps) {
   return (
     <div className="flex flex-col h-full bg-white md:border-l border-gray-200">
@@ -50,6 +57,38 @@ export function Cart({
           </button>
         )}
       </div>
+
+      {/* Member Search Section */}
+      {onSelectMember && (
+        <div className="px-3 pb-3 border-b border-gray-200">
+          <div className="flex items-center gap-2 mb-2">
+            <User className="w-4 h-4 text-gray-600" />
+            <span className="text-sm font-medium text-gray-700">ลูกค้าสมาชิก</span>
+          </div>
+          <MemberSearch
+            selectedMember={selectedMember || null}
+            onSelectMember={onSelectMember}
+            onAddNew={onAddNewMember ? (phone) => onAddNewMember() : () => {}}
+          />
+          
+          {/* Show member points summary */}
+          {selectedMember && (
+            <div className="mt-2 p-2 bg-amber-50 rounded-lg">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-amber-700">แต้มสะสม</span>
+                <div className="flex items-center gap-1">
+                  <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
+                  <span className="font-bold text-amber-700">{selectedMember.total_points}</span>
+                  <span className="text-amber-600 text-xs">แต้ม</span>
+                </div>
+              </div>
+              <p className="text-xs text-amber-600 mt-1">
+                กดชำระเงินเพื่อแลกแต้มเป็นส่วนลด
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Items */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2">

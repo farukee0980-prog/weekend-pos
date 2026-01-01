@@ -1,20 +1,35 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
   --background: #ffffff;
   --foreground: #171717;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-prompt), "Prompt", sans-serif;
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+html {
+  /* Prevent font scaling on orientation change */
+  -webkit-text-size-adjust: 100%;
+  /* Smooth scrolling */
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-prompt), "Prompt", sans-serif;
+  /* Better text rendering */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Prevent pull-to-refresh on mobile */
+  overscroll-behavior-y: contain;
 }
 
 /* Safe area utilities for mobile (LIFF) */
@@ -35,4 +50,44 @@ body {
 }
 .animate-slide-up {
   animation: slide-up 180ms ease-out;
+}
+
+/* Improve touch targets on mobile */
+@layer utilities {
+  .touch-manipulation {
+    touch-action: manipulation;
+  }
+  
+  /* Prevent text selection on buttons */
+  .select-none-important {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Improve input appearance on mobile */
+input, textarea, select {
+  font-size: 16px; /* Prevent zoom on iOS */
+}
+
+/* Better focus states for accessibility */
+*:focus-visible {
+  outline: 2px solid #d97706;
+  outline-offset: 2px;
+}
+
+/* Tablet-specific adjustments */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .tablet\:text-base {
+    font-size: 1rem;
+  }
 }

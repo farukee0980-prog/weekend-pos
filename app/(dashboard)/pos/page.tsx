@@ -4,11 +4,14 @@ import React, { useEffect, useState } from 'react';
 import { Header, MobileHeader, BottomNav } from '@/components/layout';
 import { ProductGrid, Cart, MobilePaymentSheet, PaymentSuccessSheet } from '@/components/pos';
 import { useCart } from '@/hooks/use-cart';
-import { PaymentMethod, Product, Category } from '@/lib/types';
+import { PaymentMethod, Product, Category, Member, PointsConfig } from '@/lib/types';
 import { getAvailableProducts, getAllCategories } from '@/lib/db/products';
 import { createOrder } from '@/lib/db/orders';
 import { generateOrderNumber } from '@/lib/utils';
 import { getCurrentSession } from '@/lib/db/sessions';
+import { getPointsConfig } from '@/lib/db/settings';
+import { updateMemberAfterOrder, calculatePointsFromItems } from '@/lib/db/members';
+import { MemberSearch, MemberFormModal, PointsRedeemSection } from '@/components/members';
 import { ShoppingBag, X } from 'lucide-react';
 
 export default function POSPage() {
@@ -30,14 +33,26 @@ export default function POSPage() {
   const [hasSession, setHasSession] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
+  // Member/Loyalty states
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+  const [initialMemberPhone, setInitialMemberPhone] = useState('');
+  const [pointsConfig, setPointsConfig] = useState<PointsConfig>({
+    points_to_redeem: 100,
+    redeem_value: 40,
+    default_points_per_item: 1,
+  });
+  const [redeemCount, setRedeemCount] = useState(0);
+
   const cart = useCart();
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [productsRes, categoriesRes] = await Promise.all([
+        const [productsRes, categoriesRes, pointsConfigRes] = await Promise.all([
           getAvailableProducts(),
           getAllCategories(),
+          getPointsConfig(),
         ]);
 
         if (productsRes.error || categoriesRes.error) {
@@ -45,6 +60,10 @@ export default function POSPage() {
         } else {
           setProducts(productsRes.data || []);
           setCategories(categoriesRes.data || []);
+        }
+        
+        if (pointsConfigRes.data) {
+          setPointsConfig(pointsConfigRes.data);
         }
       } catch (err) {
         console.error(err);
@@ -109,9 +128,28 @@ export default function POSPage() {
 
   const handlePaymentConfirm = async (paymentMethod: PaymentMethod, received: number) => {
     const orderNumber = generateOrderNumber();
+    
+    // คำนวณส่วนลดจากแต้ม
+    const pointsDiscount = redeemCount * pointsConfig.redeem_value;
+    const pointsRedeemed = redeemCount * pointsConfig.points_to_redeem;
+    const finalTotal = Math.max(0, cart.total - pointsDiscount);
+    
+    // คำนวณแต้มที่จะได้รับ
+    const pointsEarned = calculatePointsFromItems(
+      cart.items.map(item => ({
+        points_per_item: item.product.points_per_item || pointsConfig.default_points_per_item,
+        quantity: item.quantity,
+      }))
+    );
+
     try {
-      await createOrder({
+      const orderRes = await createOrder({
         order_number: orderNumber,
+        member_id: selectedMember?.id,
+        member_phone: selectedMember?.phone,
+        points_earned: selectedMember ? pointsEarned : 0,
+        points_redeemed: pointsRedeemed,
+        points_discount: pointsDiscount,
         items: cart.items.map((item) => ({
           product_id: item.product.id,
           product_name: item.product.name,
@@ -120,15 +158,26 @@ export default function POSPage() {
           note: item.note,
         })) as any,
         subtotal: cart.total,
-        discount: 0,
-        total: cart.total,
+        discount: pointsDiscount,
+        total: finalTotal,
         payment_method: paymentMethod,
         status: 'completed',
       } as any);
 
+      // อัปเดตแต้มสมาชิก
+      if (selectedMember && orderRes.data) {
+        await updateMemberAfterOrder(
+          selectedMember.id,
+          finalTotal,
+          pointsEarned,
+          pointsRedeemed,
+          orderRes.data.id
+        );
+      }
+
       setLastOrder({
         orderNumber,
-        total: cart.total,
+        total: finalTotal,
         paymentMethod,
         received,
         items: [...cart.items],
@@ -146,7 +195,24 @@ export default function POSPage() {
     cart.clearCart();
     setIsSuccessOpen(false);
     setLastOrder(null);
+    setSelectedMember(null);
+    setRedeemCount(0);
   };
+
+  const handleAddNewMember = (phone?: string) => {
+    setInitialMemberPhone(phone || '');
+    setIsAddMemberModalOpen(true);
+  };
+
+  const handleMemberAdded = (member: Member) => {
+    setSelectedMember(member);
+    setIsAddMemberModalOpen(false);
+  };
+
+  // Reset redeem count when member changes
+  useEffect(() => {
+    setRedeemCount(0);
+  }, [selectedMember]);
 
   return (
     <div className="flex flex-col h-screen pb-16 md:pb-0">
@@ -227,6 +293,9 @@ export default function POSPage() {
                 onUpdateNote={cart.updateNote}
                 onCheckout={handleCheckout}
                 onClearCart={cart.clearCart}
+                selectedMember={selectedMember}
+                onSelectMember={setSelectedMember}
+                onAddNewMember={handleAddNewMember}
               />
             </div>
 
@@ -246,6 +315,21 @@ export default function POSPage() {
             items={cart.items}
             total={cart.total}
             onConfirm={handlePaymentConfirm}
+            selectedMember={selectedMember}
+            onSelectMember={setSelectedMember}
+            onAddNewMember={handleAddNewMember}
+            pointsConfig={pointsConfig}
+            redeemCount={redeemCount}
+            onRedeemCountChange={setRedeemCount}
+            pointsDiscount={redeemCount * pointsConfig.redeem_value}
+          />
+
+          {/* Add Member Modal */}
+          <MemberFormModal
+            isOpen={isAddMemberModalOpen}
+            onClose={() => setIsAddMemberModalOpen(false)}
+            onSuccess={handleMemberAdded}
+            initialPhone={initialMemberPhone}
           />
 
           {/* Success Sheet */}

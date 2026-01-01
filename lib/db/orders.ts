@@ -13,6 +13,11 @@ export async function createOrder(
   try {
     const { items, ...orderData } = order;
 
+    // ตรวจสอบว่ามี items หรือไม่
+    if (!items || items.length === 0) {
+      throw new Error('Order must contain at least one item');
+    }
+
     // Get current session if session_id is not provided
     let sessionId = orderData.session_id;
     if (!sessionId) {
@@ -22,24 +27,38 @@ export async function createOrder(
       }
     }
 
-    // Prepare order data - only include session_id if we have one
-    const insertData: any = { ...orderData, created_by: createdBy };
+    // เตรียม order data อย่างปลอดภัย (เฉพาะคอลัมน์ที่มีในตาราง)
+    const cleanOrderData: any = {
+      order_number: orderData.order_number,
+      subtotal: Number(orderData.subtotal) || 0,
+      discount: Number(orderData.discount) || 0,
+      total: Number(orderData.total) || 0,
+      payment_method: orderData.payment_method,
+      member_id: orderData.member_id || null,
+      member_phone: orderData.member_phone || null,
+      points_earned: Number(orderData.points_earned) || 0,
+      points_redeemed: Number(orderData.points_redeemed) || 0,
+      points_discount: Number(orderData.points_discount) || 0,
+      status: orderData.status || 'completed'
+    };
+
     if (sessionId) {
-      insertData.session_id = sessionId;
+      cleanOrderData.session_id = sessionId;
     }
-    // Remove session_id if undefined to avoid column error
-    if (!insertData.session_id) {
-      delete insertData.session_id;
-    }
+
+    console.log('Creating order with data:', cleanOrderData);
 
     // Insert order
     const { data: orderRecord, error: orderError } = await supabase
       .from(TABLES.ORDERS)
-      .insert([insertData])
+      .insert([cleanOrderData])
       .select()
       .single();
 
-    if (orderError) throw orderError;
+    if (orderError) {
+      console.error('Order insert error:', orderError);
+      throw orderError;
+    }
 
     // Insert order items
     const orderItems = items.map((item) => ({
@@ -60,7 +79,11 @@ export async function createOrder(
     // Fetch complete order with items
     const completeOrder = await getOrderById(orderRecord.id);
     
-    return completeOrder;
+    if (completeOrder.error) {
+      throw new Error(completeOrder.error);
+    }
+
+    return { data: completeOrder.data, error: null };
   } catch (err: any) {
     console.error('Error creating order:', err);
     return { data: null, error: err.message };
