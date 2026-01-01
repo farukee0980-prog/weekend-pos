@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { Header } from '@/components/layout';
 import { Card, CardContent, Badge, Modal } from '@/components/ui';
 import { formatCurrency } from '@/lib/utils';
-import { getTodaySales, getTopProducts, getOrdersByDateRange, getSalesSummaryByDateRange } from '@/lib/db/orders';
+import { getTodaySales, getTopProducts, getOrdersByDateRange, getSalesSummaryByDateRange, getSessionSales, getOrdersBySession } from '@/lib/db/orders';
 import { getCurrentSession, getLastSession, openSession, closeSession, getAllSessions, StoreSession } from '@/lib/db/sessions';
 import type { Order, DailySummary } from '@/lib/types';
 import { 
@@ -39,9 +39,12 @@ interface SessionSummary {
 }
 
 export default function ReportsPage() {
-  const [todayRevenue, setTodayRevenue] = useState(0);
-  const [todayOrders, setTodayOrders] = useState(0);
-  const [todayItems, setTodayItems] = useState(0);
+  // Current session stats (instead of today stats)
+  const [sessionRevenue, setSessionRevenue] = useState(0);
+  const [sessionOrders, setSessionOrders] = useState(0);
+  const [sessionItems, setSessionItems] = useState(0);
+  const [sessionCashRevenue, setSessionCashRevenue] = useState(0);
+  const [sessionTransferRevenue, setSessionTransferRevenue] = useState(0);
 
   const [topProducts, setTopProducts] = useState<Array<{ productName: string; quantitySold: number; revenue: number }>>([]);
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
@@ -70,27 +73,44 @@ export default function ReportsPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [todayRes, topRes, currentSessionRes, lastSessionRes, allSessionsRes] = await Promise.all([
-          getTodaySales(),
+        const [topRes, currentSessionRes, lastSessionRes, allSessionsRes] = await Promise.all([
           getTopProducts(),
           getCurrentSession(),
           getLastSession(),
           getAllSessions(30),
         ]);
 
-        if (todayRes.error) throw new Error(todayRes.error);
         if (topRes.error) throw new Error(topRes.error);
-
-        const today = todayRes.data!;
-        setTodayRevenue(today.totalRevenue);
-        setTodayOrders(today.totalOrders);
-        setTodayItems(today.totalItems);
 
         setTopProducts(topRes.data || []);
 
         if (currentSessionRes.data) {
           setSessionId(currentSessionRes.data.id);
           setSessionStart(currentSessionRes.data.opened_at);
+          
+          // Load current session sales
+          const sessionSalesRes = await getSessionSales(currentSessionRes.data.id);
+          if (sessionSalesRes.data) {
+            setSessionRevenue(sessionSalesRes.data.totalRevenue);
+            setSessionOrders(sessionSalesRes.data.totalOrders);
+            setSessionItems(sessionSalesRes.data.totalItems);
+            setSessionCashRevenue(sessionSalesRes.data.cashRevenue);
+            setSessionTransferRevenue(sessionSalesRes.data.transferRevenue);
+          }
+
+          // Load recent orders for current session
+          const ordersRes = await getOrdersBySession(currentSessionRes.data.id);
+          if (!ordersRes.error) {
+            setRecentOrders((ordersRes.data || []).slice(0, 5));
+          }
+        } else {
+          // No current session - reset session stats
+          setSessionRevenue(0);
+          setSessionOrders(0);
+          setSessionItems(0);
+          setSessionCashRevenue(0);
+          setSessionTransferRevenue(0);
+          setRecentOrders([]);
         }
 
         if (lastSessionRes.data) {
@@ -110,13 +130,8 @@ export default function ReportsPage() {
           setSessionHistory(allSessionsRes.data);
         }
 
-        // Recent orders for today
+        // Weekly & Monthly summaries
         const now = new Date();
-        const startOfDay = new Date(now);
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(now);
-        endOfDay.setHours(23, 59, 59, 999);
-
         const startOfWeek = new Date(now);
         const day = startOfWeek.getDay();
         const diff = day === 0 ? -6 : 1 - day;
@@ -126,15 +141,11 @@ export default function ReportsPage() {
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         startOfMonth.setHours(0, 0, 0, 0);
 
-        const [ordersRes, weekRes, monthRes] = await Promise.all([
-          getOrdersByDateRange(startOfDay.toISOString(), endOfDay.toISOString()),
+        const [weekRes, monthRes] = await Promise.all([
           getSalesSummaryByDateRange(startOfWeek.toISOString(), now.toISOString()),
           getSalesSummaryByDateRange(startOfMonth.toISOString(), now.toISOString()),
         ]);
 
-        if (ordersRes.error) throw new Error(ordersRes.error);
-
-        setRecentOrders((ordersRes.data || []).slice(0, 5));
         setWeeklySummary(weekRes.data || null);
         setMonthlySummary(monthRes.data || null);
       } catch (err: any) {
@@ -154,10 +165,11 @@ export default function ReportsPage() {
 
     try {
       const end = new Date().toISOString();
-      const ordersRes = await getOrdersByDateRange(sessionStart, end);
+      // Use getOrdersBySession instead of getOrdersByDateRange
+      const ordersRes = await getOrdersBySession(sessionId);
       if (ordersRes.error) throw new Error(ordersRes.error);
 
-      const orders = ordersRes.data || [];
+      const orders = (ordersRes.data || []).filter(o => o.status === 'completed');
       const totalOrders = orders.length;
       const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0);
       const totalItems = orders.reduce(
@@ -198,6 +210,14 @@ export default function ReportsPage() {
       setLastSessionSummary({ ...summary, id: sessionId });
       setSessionStart(null);
       setSessionId(null);
+      
+      // Reset current session stats
+      setSessionRevenue(0);
+      setSessionOrders(0);
+      setSessionItems(0);
+      setSessionCashRevenue(0);
+      setSessionTransferRevenue(0);
+      setRecentOrders([]);
 
       // Reload session history
       const allSessionsRes = await getAllSessions(30);
@@ -562,13 +582,14 @@ export default function ReportsPage() {
           </Card>
         )}
 
-        {/* Stats Cards - Today */}
+        {/* Stats Cards - Current Session */}
+        {sessionStart && (
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <Calendar className="w-4 h-4 text-gray-600" />
-            <p className="text-sm font-semibold text-gray-900">ยอดวันนี้</p>
+            <Store className="w-4 h-4 text-amber-600" />
+            <p className="text-sm font-semibold text-gray-900">ยอดรอบนี้</p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <Card>
               <CardContent className="p-3 sm:p-4 flex items-center gap-3">
                 <div className="p-2 sm:p-3 rounded-xl bg-amber-50">
@@ -576,7 +597,7 @@ export default function ReportsPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-gray-500">ยอดขาย</p>
-                  <p className="text-lg sm:text-xl font-bold text-gray-900 truncate">{formatCurrency(todayRevenue)}</p>
+                  <p className="text-lg sm:text-xl font-bold text-amber-600 truncate">{formatCurrency(sessionRevenue)}</p>
                 </div>
               </CardContent>
             </Card>
@@ -587,23 +608,35 @@ export default function ReportsPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-gray-500">ออเดอร์</p>
-                  <p className="text-lg sm:text-xl font-bold text-gray-900">{todayOrders}</p>
+                  <p className="text-lg sm:text-xl font-bold text-gray-900">{sessionOrders}</p>
                 </div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-3 sm:p-4 flex items-center gap-3">
-                <div className="p-2 sm:p-3 rounded-xl bg-purple-50">
-                  <Package className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
+                <div className="p-2 sm:p-3 rounded-xl bg-green-50">
+                  <Banknote className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-500">รายการ</p>
-                  <p className="text-lg sm:text-xl font-bold text-gray-900">{todayItems}</p>
+                  <p className="text-xs text-gray-500">เงินสด</p>
+                  <p className="text-lg sm:text-xl font-bold text-green-600 truncate">{formatCurrency(sessionCashRevenue)}</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-3 sm:p-4 flex items-center gap-3">
+                <div className="p-2 sm:p-3 rounded-xl bg-blue-50">
+                  <Smartphone className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-500">โอน</p>
+                  <p className="text-lg sm:text-xl font-bold text-blue-600 truncate">{formatCurrency(sessionTransferRevenue)}</p>
                 </div>
               </CardContent>
             </Card>
           </div>
         </div>
+        )}
 
         {/* Weekly & Monthly Summary */}
         {(weeklySummary || monthlySummary) && (
@@ -702,11 +735,11 @@ export default function ReportsPage() {
             <CardContent className="p-4">
               <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <Clock className="w-4 h-4 text-blue-600" />
-                ออเดอร์ล่าสุด
+                ออเดอร์รอบนี้
               </h3>
               <div className="space-y-3">
                 {recentOrders.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-4">ยังไม่มีออเดอร์วันนี้</p>
+                  <p className="text-sm text-gray-500 text-center py-4">{sessionStart ? 'ยังไม่มีออเดอร์ในรอบนี้' : 'ยังไม่ได้เปิดร้าน'}</p>
                 ) : (
                   recentOrders.map((order) => (
                     <div key={order.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">

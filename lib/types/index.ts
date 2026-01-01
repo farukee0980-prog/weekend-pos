@@ -51,6 +51,7 @@ export interface OrderItem {
 export interface Order {
   id: string;
   order_number: string;
+  session_id?: string;
   items: OrderItem[];
   subtotal: number;
   discount: number;

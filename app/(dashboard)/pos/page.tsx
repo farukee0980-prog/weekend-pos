@@ -8,7 +8,6 @@ import { PaymentMethod, Product, Category } from '@/lib/types';
 import { getAvailableProducts, getAllCategories } from '@/lib/db/products';
 import { createOrder } from '@/lib/db/orders';
 import { generateOrderNumber } from '@/lib/utils';
-import StaffGuard from '@/components/auth/staff-guard';
 import { getCurrentSession } from '@/lib/db/sessions';
 import { ShoppingBag, X } from 'lucide-react';
 
@@ -21,6 +20,7 @@ export default function POSPage() {
     total: number;
     paymentMethod: PaymentMethod;
     received: number;
+    items: typeof cart.items;
   } | null>(null);
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -131,6 +131,7 @@ export default function POSPage() {
         total: cart.total,
         paymentMethod,
         received,
+        items: [...cart.items],
       });
 
       setIsPaymentOpen(false);
@@ -147,13 +148,7 @@ export default function POSPage() {
     setLastOrder(null);
   };
 
-  const handlePrint = () => {
-    // TODO: Implement print receipt
-    window.print();
-  };
-
   return (
-    <StaffGuard>
     <div className="flex flex-col h-screen pb-16 md:pb-0">
       {isLoadingData && (
         <div className="flex-1 flex items-center justify-center">
@@ -263,6 +258,7 @@ export default function POSPage() {
               paymentMethod={lastOrder.paymentMethod}
               received={lastOrder.received}
               onNewOrder={handleNewOrder}
+              items={lastOrder.items}
             />
           )}
 
@@ -273,6 +269,5 @@ export default function POSPage() {
         </>
       )}
     </div>
-    </StaffGuard>
   );
 }

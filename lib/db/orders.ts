@@ -1,5 +1,6 @@
 import { supabase, TABLES } from '@/lib/supabase';
 import type { Order, OrderItem, ApiResponse, DailySummary } from '@/lib/types';
+import { getCurrentSession } from './sessions';
 
 // ===================================
 // Orders CRUD
@@ -12,10 +13,29 @@ export async function createOrder(
   try {
     const { items, ...orderData } = order;
 
+    // Get current session if session_id is not provided
+    let sessionId = orderData.session_id;
+    if (!sessionId) {
+      const currentSession = await getCurrentSession();
+      if (currentSession.data) {
+        sessionId = currentSession.data.id;
+      }
+    }
+
+    // Prepare order data - only include session_id if we have one
+    const insertData: any = { ...orderData, created_by: createdBy };
+    if (sessionId) {
+      insertData.session_id = sessionId;
+    }
+    // Remove session_id if undefined to avoid column error
+    if (!insertData.session_id) {
+      delete insertData.session_id;
+    }
+
     // Insert order
     const { data: orderRecord, error: orderError } = await supabase
       .from(TABLES.ORDERS)
-      .insert([{ ...orderData, created_by: createdBy }])
+      .insert([insertData])
       .select()
       .single();
 
@@ -141,6 +161,124 @@ export async function getOrdersByDateRange(
   } catch (err: any) {
     console.error('Error fetching orders by date range:', err);
     return { data: null, error: err.message };
+  }
+}
+
+// ===================================
+// Orders by Session
+// ===================================
+
+export async function getOrdersBySession(
+  sessionId: string
+): Promise<ApiResponse<Order[]>> {
+  try {
+    if (!sessionId) {
+      return { data: [], error: null };
+    }
+
+    // First check if session_id column exists by trying query
+    const { data: ordersData, error: ordersError } = await supabase
+      .from(TABLES.ORDERS)
+      .select('*')
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: false });
+
+    // If error about column not existing, return empty
+    if (ordersError) {
+      console.warn('session_id column may not exist yet:', ordersError.message);
+      return { data: [], error: null };
+    }
+
+    // Fetch items for all orders
+    const ordersWithItems = await Promise.all(
+      (ordersData || []).map(async (order) => {
+        const { data: itemsData } = await supabase
+          .from(TABLES.ORDER_ITEMS)
+          .select('*')
+          .eq('order_id', order.id);
+
+        return {
+          ...order,
+          items: itemsData || [],
+        };
+      })
+    );
+
+    return { data: ordersWithItems, error: null };
+  } catch (err: any) {
+    console.error('Error fetching orders by session:', err);
+    return { data: [], error: null };
+  }
+}
+
+export async function getSessionSales(sessionId: string): Promise<ApiResponse<{
+  totalOrders: number;
+  totalRevenue: number;
+  totalItems: number;
+  cashRevenue: number;
+  transferRevenue: number;
+}>> {
+  try {
+    if (!sessionId) {
+      return {
+        data: { totalOrders: 0, totalRevenue: 0, totalItems: 0, cashRevenue: 0, transferRevenue: 0 },
+        error: null,
+      };
+    }
+
+    const { data: ordersData, error: ordersError } = await supabase
+      .from(TABLES.ORDERS)
+      .select('id, total, payment_method')
+      .eq('session_id', sessionId)
+      .eq('status', 'completed');
+
+    // If error about column not existing, return zeros
+    if (ordersError) {
+      console.warn('session_id column may not exist yet:', ordersError.message);
+      return {
+        data: { totalOrders: 0, totalRevenue: 0, totalItems: 0, cashRevenue: 0, transferRevenue: 0 },
+        error: null,
+      };
+    }
+
+    const totalOrders = ordersData?.length || 0;
+    const totalRevenue = ordersData?.reduce((sum, order) => sum + order.total, 0) || 0;
+
+    let cashRevenue = 0;
+    let transferRevenue = 0;
+    ordersData?.forEach((o) => {
+      if (o.payment_method === 'cash') {
+        cashRevenue += o.total;
+      } else if (o.payment_method === 'transfer') {
+        transferRevenue += o.total;
+      }
+    });
+
+    // Get total items sold in this session
+    const orderIds = ordersData?.map(o => o.id) || [];
+    let totalItems = 0;
+
+    if (orderIds.length > 0) {
+      const { data: itemsData, error: itemsError } = await supabase
+        .from(TABLES.ORDER_ITEMS)
+        .select('quantity')
+        .in('order_id', orderIds);
+
+      if (!itemsError && itemsData) {
+        totalItems = itemsData.reduce((sum, item) => sum + item.quantity, 0);
+      }
+    }
+
+    return {
+      data: { totalOrders, totalRevenue, totalItems, cashRevenue, transferRevenue },
+      error: null,
+    };
+  } catch (err: any) {
+    console.error('Error fetching session sales:', err);
+    return {
+      data: { totalOrders: 0, totalRevenue: 0, totalItems: 0, cashRevenue: 0, transferRevenue: 0 },
+      error: null,
+    };
   }
 }
 

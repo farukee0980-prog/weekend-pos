@@ -18,7 +18,7 @@ const navigation = [
   { name: 'สินค้า', href: '/products', icon: Package },
   { name: 'ออเดอร์', href: '/orders', icon: ClipboardList },
   { name: 'รายงาน', href: '/reports', icon: BarChart3 },
-  
+  { name: 'ตั้งค่า', href: '/settings', icon: Settings },
 ];
 
 export function Sidebar() {

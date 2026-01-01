@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Plus, Search, Edit, Trash2, Coffee, Package, Image as ImageIcon, FolderPlus, X } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Coffee, Package, Image as ImageIcon, FolderPlus, X, AlertTriangle, Check } from 'lucide-react';
 import { Header } from '@/components/layout';
 import { Button, Card, CardContent, Modal, Badge } from '@/components/ui';
 import { formatCurrency, cn } from '@/lib/utils';
@@ -347,8 +347,9 @@ export default function ProductsPage() {
             <p className="text-gray-600">
               คุณต้องการลบหมวดหมู่ <strong>{deletingCategory.name}</strong> ใช่หรือไม่?
             </p>
-            <p className="text-sm text-amber-600">
-              ⚠️ หากหมวดหมู่นี้มีสินค้าอยู่จะไม่สามารถลบได้
+            <p className="text-sm text-amber-600 flex items-center gap-1">
+              <AlertTriangle className="w-4 h-4" />
+              หากหมวดหมู่นี้มีสินค้าอยู่จะไม่สามารถลบได้
             </p>
             <div className="flex gap-3">
               <Button variant="outline" onClick={() => setDeletingCategory(null)} className="flex-1">ยกเลิก</Button>
@@ -513,7 +514,10 @@ function ProductFormModal({ isOpen, onClose, product, categories, onSave }: Prod
               <p className="text-sm text-gray-700 mb-1">คลิกที่กรอบเพื่ออัพโหลดรูปภาพ</p>
               <p className="text-xs text-gray-600">รองรับไฟล์ JPG, PNG, GIF</p>
               {imageFile && (
-                <p className="text-xs text-green-600 mt-2">✓ เลือกไฟล์: {imageFile.name}</p>
+                <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
+                  <Check className="w-3 h-3" />
+                  เลือกไฟล์: {imageFile.name}
+                </p>
               )}
             </div>
           </div>

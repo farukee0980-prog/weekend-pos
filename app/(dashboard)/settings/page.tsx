@@ -293,7 +293,7 @@ export default function SettingsPage() {
             <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
               <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-red-900">
-                <p className="font-semibold mb-1">⚠️ คำเตือน: การกระทำนี้ไม่สามารถย้อนกลับได้</p>
+                <p className="font-semibold mb-1">คำเตือน: การกระทำนี้ไม่สามารถย้อนกลับได้</p>
                 <p>การลบข้อมูลจะลบ:</p>
                 <ul className="list-disc list-inside mt-2 space-y-1">
                   <li>ออเดอร์ทั้งหมด</li>

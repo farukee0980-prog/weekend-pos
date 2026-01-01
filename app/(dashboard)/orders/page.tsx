@@ -1,12 +1,14 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Search, Eye, Printer, Filter, Calendar, ChevronDown, ShoppingCart, DollarSign, CheckCircle, XCircle } from 'lucide-react';
+import { Search, Eye, Printer, Filter, Clock, ShoppingCart, DollarSign, CheckCircle, XCircle, Store, ChevronRight, Banknote, Smartphone, Circle, List } from 'lucide-react';
 import { Header } from '@/components/layout';
 import { Card, CardContent, Badge, Button, Modal } from '@/components/ui';
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
 import { Order, OrderStatus, PaymentMethod } from '@/lib/types';
-import { getAllOrders, updateOrderStatus } from '@/lib/db/orders';
+import { getAllOrders, updateOrderStatus, getOrdersBySession, getSessionSales } from '@/lib/db/orders';
+import { getCurrentSession, getAllSessions, StoreSession } from '@/lib/db/sessions';
+import { printReceipt, ReceiptData } from '@/components/pos';
 
 const statusConfig: Record<OrderStatus, { label: string; variant: 'success' | 'warning' | 'danger' }> = {
   completed: { label: 'สำเร็จ', variant: 'success' },
@@ -19,23 +21,59 @@ const paymentMethodLabels: Record<PaymentMethod, string> = {
   transfer: 'โอนเงิน',
 };
 
+interface SessionWithOrders extends StoreSession {
+  orders: Order[];
+  cashRevenue?: number;
+  transferRevenue?: number;
+}
+
 export default function OrdersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [cancelingOrder, setCancelingOrder] = useState<Order | null>(null);
-  const [orders, setOrders] = useState<Order[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
+
+  // Session-based data
+  const [currentSession, setCurrentSession] = useState<SessionWithOrders | null>(null);
+  const [pastSessions, setPastSessions] = useState<SessionWithOrders[]>([]);
+  const [selectedSessionFilter, setSelectedSessionFilter] = useState<string | 'current' | 'all'>('current');
 
   useEffect(() => {
     async function loadData() {
       try {
-        const res = await getAllOrders();
-        if (res.error) {
-          setDataError(res.error);
-        } else {
-          setOrders(res.data || []);
+        // Load current session
+        const currentSessionRes = await getCurrentSession();
+        
+        if (currentSessionRes.data) {
+          const ordersRes = await getOrdersBySession(currentSessionRes.data.id);
+          const salesRes = await getSessionSales(currentSessionRes.data.id);
+          
+          setCurrentSession({
+            ...currentSessionRes.data,
+            orders: ordersRes.data || [],
+            total_orders: salesRes.data?.totalOrders ?? 0,
+            total_revenue: salesRes.data?.totalRevenue ?? 0,
+            total_items: salesRes.data?.totalItems ?? 0,
+            cash_revenue: salesRes.data?.cashRevenue ?? 0,
+            transfer_revenue: salesRes.data?.transferRevenue ?? 0,
+          });
+        }
+
+        // Load past sessions
+        const allSessionsRes = await getAllSessions(30);
+        if (allSessionsRes.data) {
+          const sessionsWithOrders = await Promise.all(
+            allSessionsRes.data.map(async (session) => {
+              const ordersRes = await getOrdersBySession(session.id);
+              return {
+                ...session,
+                orders: ordersRes.data || [],
+              };
+            })
+          );
+          setPastSessions(sessionsWithOrders);
         }
       } catch (err) {
         console.error(err);
@@ -48,17 +86,58 @@ export default function OrdersPage() {
     loadData();
   }, []);
 
-  const filteredOrders = orders.filter((order) => {
-    const matchesSearch = order.order_number.includes(searchQuery);
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // Get orders based on selected filter
+  const getFilteredOrders = () => {
+    let orders: Order[] = [];
+
+    if (selectedSessionFilter === 'current' && currentSession) {
+      orders = currentSession.orders;
+    } else if (selectedSessionFilter === 'all') {
+      orders = [
+        ...(currentSession?.orders || []),
+        ...pastSessions.flatMap(s => s.orders)
+      ];
+    } else {
+      const session = pastSessions.find(s => s.id === selectedSessionFilter);
+      if (session) {
+        orders = session.orders;
+      }
+    }
+
+    // Apply search and status filter
+    return orders.filter((order) => {
+      const matchesSearch = order.order_number.includes(searchQuery);
+      const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  };
+
+  const filteredOrders = getFilteredOrders();
+
+  // Current session stats
+  const currentStats = {
+    totalOrders: currentSession?.total_orders ?? 0,
+    totalRevenue: currentSession?.total_revenue ?? 0,
+    completedOrders: currentSession?.orders?.filter(o => o.status === 'completed').length ?? 0,
+    pendingOrders: currentSession?.orders?.filter(o => o.status === 'pending').length ?? 0,
+    cashRevenue: currentSession?.cash_revenue ?? 0,
+    transferRevenue: currentSession?.transfer_revenue ?? 0,
+  };
 
   const reloadOrders = async () => {
     try {
-      const res = await getAllOrders();
-      if (!res.error) {
-        setOrders(res.data || []);
+      if (currentSession) {
+        const ordersRes = await getOrdersBySession(currentSession.id);
+        const salesRes = await getSessionSales(currentSession.id);
+        setCurrentSession({
+          ...currentSession,
+          orders: ordersRes.data || [],
+          total_orders: salesRes.data?.totalOrders ?? 0,
+          total_revenue: salesRes.data?.totalRevenue ?? 0,
+          total_items: salesRes.data?.totalItems ?? 0,
+          cash_revenue: salesRes.data?.cashRevenue ?? 0,
+          transfer_revenue: salesRes.data?.transferRevenue ?? 0,
+        });
       }
     } catch (err) {
       console.error(err);
@@ -82,55 +161,133 @@ export default function OrdersPage() {
     }
   };
 
-  const todayStats = {
-    totalOrders: orders.length,
-    totalRevenue: orders.filter((o) => o.status === 'completed').reduce((sum, o) => sum + o.total, 0),
-    completedOrders: orders.filter((o) => o.status === 'completed').length,
+  const handlePrintOrder = (order: Order) => {
+    const receiptData: ReceiptData = {
+      orderNumber: order.order_number,
+      items: order.items,
+      subtotal: order.subtotal,
+      discount: order.discount,
+      total: order.total,
+      paymentMethod: order.payment_method,
+      createdAt: order.created_at,
+    };
+    printReceipt(receiptData);
   };
+
+  const formatSessionDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('th-TH', { 
+      day: 'numeric', 
+      month: 'short', 
+      year: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getSelectedSessionInfo = () => {
+    if (selectedSessionFilter === 'current' && currentSession) {
+      return {
+        label: 'รอบปัจจุบัน',
+        start: currentSession.opened_at,
+        end: null,
+        totalOrders: currentStats.totalOrders,
+        totalRevenue: currentStats.totalRevenue,
+        cashRevenue: currentStats.cashRevenue,
+        transferRevenue: currentStats.transferRevenue,
+      };
+    } else if (selectedSessionFilter === 'all') {
+      const allOrders = [
+        ...(currentSession?.orders || []),
+        ...pastSessions.flatMap(s => s.orders)
+      ];
+      const completedOrders = allOrders.filter(o => o.status === 'completed');
+      return {
+        label: 'ทุกรอบ',
+        start: null,
+        end: null,
+        totalOrders: allOrders.length,
+        totalRevenue: completedOrders.reduce((sum, o) => sum + o.total, 0),
+        cashRevenue: completedOrders.filter(o => o.payment_method === 'cash').reduce((sum, o) => sum + o.total, 0),
+        transferRevenue: completedOrders.filter(o => o.payment_method === 'transfer').reduce((sum, o) => sum + o.total, 0),
+      };
+    } else {
+      const session = pastSessions.find(s => s.id === selectedSessionFilter);
+      if (session) {
+        return {
+          label: formatSessionDate(session.opened_at),
+          start: session.opened_at,
+          end: session.closed_at,
+          totalOrders: session.total_orders ?? 0,
+          totalRevenue: session.total_revenue ?? 0,
+          cashRevenue: session.cash_revenue ?? 0,
+          transferRevenue: session.transfer_revenue ?? 0,
+        };
+      }
+    }
+    return null;
+  };
+
+  const sessionInfo = getSelectedSessionInfo();
 
   return (
     <div className="flex flex-col h-screen">
-      <Header title="ประวัติออเดอร์" subtitle="ดูและจัดการออเดอร์ทั้งหมด" />
+      <Header title="ประวัติออเดอร์" subtitle="ดูและจัดการออเดอร์ตามรอบการขาย" />
 
       <div className="flex-1 overflow-auto p-4 md:p-6 space-y-4 md:space-y-6">
-        {/* Today Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+        {/* Current Session Stats */}
+        {currentSession && (
           <Card>
-            <CardContent className="p-3 md:p-4 flex items-center gap-3">
-              <div className="p-2 md:p-3 rounded-xl bg-blue-50">
-                <ShoppingCart className="w-5 h-5 md:w-6 md:h-6 text-blue-600" />
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-lg bg-green-50">
+                    <Store className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-900">รอบปัจจุบัน</p>
+                    <p className="text-xs text-gray-500">เปิดตั้งแต่ {formatSessionDate(currentSession.opened_at)}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 rounded-full">
+                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                  <span className="text-sm font-medium text-green-700">กำลังเปิด</span>
+                </div>
               </div>
-              <div className="flex-1">
-                <p className="text-xs text-gray-600">ออเดอร์วันนี้</p>
-                <p className="text-2xl md:text-3xl font-bold text-gray-900">{todayStats.totalOrders}</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">ออเดอร์</p>
+                  <p className="text-xl font-bold text-gray-900">{currentStats.totalOrders}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">ยอดขาย</p>
+                  <p className="text-xl font-bold text-amber-600">{formatCurrency(currentStats.totalRevenue)}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">เงินสด</p>
+                  <p className="text-xl font-bold text-green-600">{formatCurrency(currentStats.cashRevenue)}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">โอน</p>
+                  <p className="text-xl font-bold text-blue-600">{formatCurrency(currentStats.transferRevenue)}</p>
+                </div>
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-3 md:p-4 flex items-center gap-3">
-              <div className="p-2 md:p-3 rounded-xl bg-amber-50">
-                <DollarSign className="w-5 h-5 md:w-6 md:h-6 text-amber-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-600">ยอดขายวันนี้</p>
-                <p className="text-xl md:text-2xl font-bold text-amber-600 truncate">{formatCurrency(todayStats.totalRevenue)}</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 md:p-4 flex items-center gap-3">
-              <div className="p-2 md:p-3 rounded-xl bg-green-50">
-                <CheckCircle className="w-5 h-5 md:w-6 md:h-6 text-green-600" />
-              </div>
-              <div className="flex-1">
-                <p className="text-xs text-gray-600">สำเร็จ</p>
-                <p className="text-2xl md:text-3xl font-bold text-green-600">{todayStats.completedOrders}</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        )}
 
-        {/* Filters */}
+        {!currentSession && !isLoadingData && (
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3 text-gray-500">
+                <Store className="w-5 h-5" />
+                <span>ยังไม่ได้เปิดร้าน - ไปที่หน้ารายงานเพื่อเปิดร้าน</span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Session Filter */}
         <div className="flex flex-col md:flex-row gap-3 md:gap-4">
           <div className="relative flex-1 md:max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
@@ -144,10 +301,26 @@ export default function OrdersPage() {
           </div>
 
           <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
+            <select
+              value={selectedSessionFilter}
+              onChange={(e) => setSelectedSessionFilter(e.target.value)}
+              className="px-3 py-2 rounded-lg border border-gray-300 text-sm font-medium bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+            >
+              {currentSession && <option value="current">● รอบปัจจุบัน</option>}
+              <option value="all">☰ ทุกรอบ</option>
+              {pastSessions.map((session) => (
+                <option key={session.id} value={session.id}>
+                  {new Date(session.opened_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} - {formatCurrency(session.total_revenue ?? 0)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
             <button
               onClick={() => setStatusFilter('all')}
               className={cn(
-                'px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                'px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap',
                 statusFilter === 'all'
                   ? 'bg-amber-600 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -158,7 +331,7 @@ export default function OrdersPage() {
             <button
               onClick={() => setStatusFilter('completed')}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap',
                 statusFilter === 'completed'
                   ? 'bg-green-600 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -170,7 +343,7 @@ export default function OrdersPage() {
             <button
               onClick={() => setStatusFilter('cancelled')}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap',
                 statusFilter === 'cancelled'
                   ? 'bg-red-600 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -180,13 +353,29 @@ export default function OrdersPage() {
               ยกเลิก
             </button>
           </div>
-
-          <button className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors whitespace-nowrap">
-            <Calendar className="w-4 h-4" />
-            <span className="text-sm font-medium">วันนี้</span>
-            <ChevronDown className="w-4 h-4" />
-          </button>
         </div>
+
+        {/* Selected Session Info */}
+        {sessionInfo && selectedSessionFilter !== 'current' && (
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold text-gray-900">{sessionInfo.label}</p>
+                  {sessionInfo.start && sessionInfo.end && (
+                    <p className="text-xs text-gray-500">
+                      {formatSessionDate(sessionInfo.start)} - {formatSessionDate(sessionInfo.end)}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-4 text-sm">
+                  <span className="text-gray-600">{sessionInfo.totalOrders} ออเดอร์</span>
+                  <span className="font-semibold text-amber-600">{formatCurrency(sessionInfo.totalRevenue)}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Orders List */}
         <Card>
@@ -249,7 +438,11 @@ export default function OrdersPage() {
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-                          <button className="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors" title="พิมพ์">
+                          <button 
+                            onClick={() => handlePrintOrder(order)}
+                            className="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors" 
+                            title="พิมพ์"
+                          >
                             <Printer className="w-4 h-4" />
                           </button>
                           {order.status === 'completed' && (
@@ -298,7 +491,10 @@ export default function OrdersPage() {
                       <Eye className="w-4 h-4" />
                       ดูรายละเอียด
                     </button>
-                    <button className="p-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200">
+                    <button 
+                      onClick={() => handlePrintOrder(order)}
+                      className="p-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    >
                       <Printer className="w-4 h-4" />
                     </button>
                     {order.status === 'completed' && (
@@ -317,7 +513,8 @@ export default function OrdersPage() {
             {filteredOrders.length === 0 && (
               <div className="flex flex-col items-center justify-center py-12 text-gray-500">
                 <Filter className="w-12 h-12 mb-2" />
-                <p>ไม่พบออเดอร์</p>
+                <p>ไม่พบออเดอร์ในรอบนี้</p>
+                <p className="text-sm mt-1">ลองเปลี่ยนรอบหรือตัวกรองสถานะ</p>
               </div>
             )}
             </>
@@ -328,7 +525,7 @@ export default function OrdersPage() {
 
       {/* Order Detail Modal */}
       {selectedOrder && (
-        <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
+        <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)} onPrint={handlePrintOrder} />
       )}
 
       {/* Cancel Confirm Modal */}
@@ -363,9 +560,10 @@ export default function OrdersPage() {
 interface OrderDetailModalProps {
   order: Order;
   onClose: () => void;
+  onPrint: (order: Order) => void;
 }
 
-function OrderDetailModal({ order, onClose }: OrderDetailModalProps) {
+function OrderDetailModal({ order, onClose, onPrint }: OrderDetailModalProps) {
   return (
     <Modal isOpen={true} onClose={onClose} title={`ออเดอร์ #${order.order_number.slice(-8)}`} size="lg">
       <div className="space-y-4">
@@ -424,7 +622,7 @@ function OrderDetailModal({ order, onClose }: OrderDetailModalProps) {
           <Button variant="outline" onClick={onClose} className="flex-1">
             ปิด
           </Button>
-          <Button className="flex-1">
+          <Button onClick={() => onPrint(order)} className="flex-1">
             <Printer className="w-5 h-5" />
             พิมพ์ใบเสร็จ
           </Button>

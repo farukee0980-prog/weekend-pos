@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Banknote, Smartphone, Check, X } from 'lucide-react';
+import { Banknote, Smartphone, Check, X, Printer } from 'lucide-react';
 import { CartItem, PaymentMethod } from '@/lib/types';
 import { formatCurrency, cn } from '@/lib/utils';
 import { Button } from '@/components/ui';
+import { printReceipt, ReceiptData } from './receipt';
 
 interface MobilePaymentSheetProps {
   isOpen: boolean;
@@ -236,6 +237,7 @@ interface PaymentSuccessSheetProps {
   paymentMethod: PaymentMethod;
   received: number;
   onNewOrder: () => void;
+  items?: CartItem[];
 }
 
 export function PaymentSuccessSheet({
@@ -246,8 +248,32 @@ export function PaymentSuccessSheet({
   paymentMethod,
   received,
   onNewOrder,
+  items = [],
 }: PaymentSuccessSheetProps) {
   const change = received - total;
+
+  const handlePrint = () => {
+    const receiptData: ReceiptData = {
+      orderNumber,
+      items: items.map((item) => ({
+        id: item.product.id,
+        order_id: '',
+        product_id: item.product.id,
+        product_name: item.product.name,
+        price: item.product.price,
+        quantity: item.quantity,
+        note: item.note,
+      })),
+      subtotal: total,
+      discount: 0,
+      total,
+      paymentMethod,
+      received: paymentMethod === 'cash' ? received : undefined,
+      change: paymentMethod === 'cash' ? change : undefined,
+      createdAt: new Date().toISOString(),
+    };
+    printReceipt(receiptData);
+  };
 
   if (!isOpen) return null;
 
@@ -292,10 +318,20 @@ export function PaymentSuccessSheet({
             )}
           </div>
 
-          {/* Action */}
-          <Button onClick={onNewOrder} className="w-full h-14 text-lg">
-            ออเดอร์ใหม่
-          </Button>
+          {/* Actions */}
+          <div className="space-y-3">
+            <Button 
+              onClick={handlePrint} 
+              variant="outline" 
+              className="w-full h-12 text-base"
+            >
+              <Printer className="w-5 h-5 mr-2" />
+              พิมพ์ใบเสร็จ
+            </Button>
+            <Button onClick={onNewOrder} className="w-full h-14 text-lg">
+              ออเดอร์ใหม่
+            </Button>
+          </div>
         </div>
       </div>
     </div>
