@@ -12,6 +12,15 @@ const prompt = Prompt({
 export const metadata: Metadata = {
   title: "POS Freedome",
   description: "ระบบขายหน้าร้านสำหรับธุรกิจขนาดเล็ก",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "POS Freedome",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export default function RootLayout({
@@ -23,6 +32,8 @@ export default function RootLayout({
     <html lang="th" className="light" style={{ colorScheme: 'light' }}>
       <head>
         <meta name="color-scheme" content="light" />
+        <meta name="theme-color" content="#d97706" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
       </head>
       <body className={`${prompt.variable} font-sans antialiased bg-white text-gray-900`}>
         <Providers>{children}</Providers>
