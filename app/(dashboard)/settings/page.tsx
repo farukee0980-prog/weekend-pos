@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Header } from '@/components/layout';
+import { PageHeader } from '@/components/layout';
 import { Card, CardContent, Button, Modal } from '@/components/ui';
 import { Store, Save, Printer, Trash2, AlertTriangle, Star, Gift } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -297,18 +297,21 @@ export default function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col h-screen">
-        <Header title="ตั้งค่า" subtitle="ตั้งค่าร้านค้าและใบเสร็จ" />
+      <div className="flex flex-col min-h-[calc(100vh-4rem)] md:min-h-screen">
+        <PageHeader title="ตั้งค่า" subtitle="ตั้งค่าร้านค้าและใบเสร็จ" />
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-gray-500">กำลังโหลด...</p>
+          <div className="animate-pulse flex flex-col items-center gap-2">
+            <div className="w-10 h-10 rounded-full bg-amber-200" />
+            <p className="text-gray-400 text-sm">กำลังโหลด...</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen">
-      <Header title="ตั้งค่า" subtitle="ตั้งค่าร้านค้าและใบเสร็จ" />
+    <div className="flex flex-col min-h-[calc(100vh-4rem)] md:min-h-screen">
+      <PageHeader title="ตั้งค่า" subtitle="ตั้งค่าร้านค้าและใบเสร็จ" />
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
@@ -388,7 +391,7 @@ export default function SettingsPage() {
         </Modal>
       )}
 
-      <div className="flex-1 overflow-auto p-4 md:p-6 space-y-6">
+      <div className="flex-1 p-4 md:p-6 space-y-6">
         {/* Store Settings */}
         <Card>
           <CardContent className="p-4 md:p-6">

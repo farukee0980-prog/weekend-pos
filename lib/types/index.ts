@@ -129,3 +129,16 @@ export interface PointsConfig {
   redeem_value: number; // มูลค่าส่วนลดเมื่อแลก (เช่น 40 บาท)
   default_points_per_item: number; // แต้มเริ่มต้นต่อสินค้า
 }
+
+// ===================================
+// Hold Order Types (พักออเดอร์)
+// ===================================
+
+export interface HeldOrder {
+  id: string;
+  items: CartItem[];
+  total: number;
+  member?: Member | null;
+  note?: string;
+  createdAt: string;
+}

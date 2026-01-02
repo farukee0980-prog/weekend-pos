@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Minus, Plus, Trash2, ShoppingBag, MessageSquare, User, Star } from 'lucide-react';
+import { Minus, Plus, Trash2, ShoppingBag, MessageSquare, User, Star, Pause, Clock } from 'lucide-react';
 import { CartItem, Member } from '@/lib/types';
 import { formatCurrency, cn } from '@/lib/utils';
 import { Button } from '@/components/ui';
@@ -18,6 +18,10 @@ interface CartProps {
   selectedMember?: Member | null;
   onSelectMember?: (member: Member | null) => void;
   onAddNewMember?: () => void;
+  // Hold order props
+  onHoldOrder?: () => void;
+  heldOrdersCount?: number;
+  onShowHeldOrders?: () => void;
 }
 
 export function Cart({
@@ -31,6 +35,9 @@ export function Cart({
   selectedMember,
   onSelectMember,
   onAddNewMember,
+  onHoldOrder,
+  heldOrdersCount = 0,
+  onShowHeldOrders,
 }: CartProps) {
   return (
     <div className="flex flex-col h-full bg-white md:border-l border-gray-200">
@@ -47,15 +54,37 @@ export function Cart({
             )}
           </div>
         </div>
-        {items.length > 0 && (
-          <button
-            onClick={onClearCart}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg text-red-600 bg-red-50 hover:bg-red-100 transition-colors"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>ล้าง</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Held Orders Button */}
+          {onShowHeldOrders && (
+            <button
+              onClick={onShowHeldOrders}
+              className={cn(
+                'relative flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
+                heldOrdersCount > 0
+                  ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              )}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span>พักไว้</span>
+              {heldOrdersCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-blue-600 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                  {heldOrdersCount}
+                </span>
+              )}
+            </button>
+          )}
+          {items.length > 0 && (
+            <button
+              onClick={onClearCart}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg text-red-600 bg-red-50 hover:bg-red-100 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>ล้าง</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Member Search Section */}
@@ -128,10 +157,25 @@ export function Cart({
             </div>
           </div>
 
-          {/* Checkout Button */}
-          <Button onClick={onCheckout} className="w-full h-12 text-base font-bold shadow-lg" size="lg">
-            <span>ชำระเงิน</span>
-          </Button>
+          {/* Action Buttons */}
+          <div className="flex gap-2">
+            {/* Hold Order Button */}
+            {onHoldOrder && (
+              <Button 
+                onClick={onHoldOrder} 
+                variant="outline"
+                className="flex-shrink-0 h-12 px-4 border-blue-200 text-blue-600 hover:bg-blue-50"
+                size="lg"
+              >
+                <Pause className="w-5 h-5" />
+              </Button>
+            )}
+            
+            {/* Checkout Button */}
+            <Button onClick={onCheckout} className="flex-1 h-12 text-base font-bold shadow-lg" size="lg">
+              <span>ชำระเงิน</span>
+            </Button>
+          </div>
         </div>
       )}
     </div>

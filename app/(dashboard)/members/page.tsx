@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Header, MobileHeader, BottomNav } from '@/components/layout';
+import { PageHeader } from '@/components/layout';
 import { 
   Users, Plus, Search, Star, Phone, ShoppingBag, 
   Wallet, Edit2, Trash2, History, X 
@@ -132,111 +132,98 @@ export default function MembersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Desktop Header */}
-      <div className="hidden md:block">
-        <Header title="สมาชิก" subtitle="จัดการสมาชิกสะสมแต้ม" />
-      </div>
-
-      {/* Mobile Header */}
-      <div className="md:hidden">
-        <MobileHeader title="สมาชิก" />
-      </div>
+    <div className="min-h-[calc(100vh-4rem)] md:min-h-screen bg-gray-50">
+      <PageHeader 
+        title="สมาชิก" 
+        subtitle="จัดการสมาชิกสะสมแต้ม"
+        rightContent={
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setIsAddModalOpen(true)}
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline ml-1">เพิ่มสมาชิก</span>
+          </Button>
+        }
+      />
 
       {/* Main Content */}
-      <main className="pb-20 md:pb-6 md:ml-64">
-        <div className="p-4 md:p-6 max-w-6xl mx-auto">
-          {/* Header */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">จัดการสมาชิก</h1>
-              <p className="text-gray-500 text-sm mt-1">
-                สมาชิกทั้งหมด {members.length} คน
-              </p>
-            </div>
-            <Button
-              variant="primary"
-              onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center gap-2"
-            >
-              <Plus className="w-5 h-5" />
-              <span>เพิ่มสมาชิก</span>
-            </Button>
-          </div>
-
-          {/* Search */}
-          <div className="relative mb-6">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ค้นหาชื่อหรือเบอร์โทร..."
-              className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-            />
-          </div>
-
-          {/* Points Config Summary */}
-          <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4 mb-6">
-            <div className="flex items-center gap-2 text-amber-700 text-sm">
-              <Star className="w-4 h-4 fill-amber-500" />
-              <span>
-                สะสมครบ <strong>{pointsConfig.points_to_redeem}</strong> แต้ม = ส่วนลด{' '}
-                <strong>{formatCurrency(pointsConfig.redeem_value)}</strong>
-              </span>
-            </div>
-          </div>
-
-          {/* Members List */}
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : filteredMembers.length === 0 ? (
-            <div className="text-center py-12">
-              <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">
-                {searchQuery ? 'ไม่พบสมาชิกที่ค้นหา' : 'ยังไม่มีสมาชิก'}
-              </p>
-            </div>
-          ) : (
-            <div className="grid gap-3">
-              {filteredMembers.map((member) => (
-                <button
-                  key={member.id}
-                  onClick={() => handleViewMember(member)}
-                  className="w-full bg-white border border-gray-200 rounded-xl p-4 hover:border-amber-300 hover:shadow-md transition-all text-left"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
-                      <Users className="w-6 h-6 text-amber-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-900 truncate">{member.name}</p>
-                      <p className="text-sm text-gray-500 flex items-center gap-1">
-                        <Phone className="w-3.5 h-3.5" />
-                        {member.phone}
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <div className="flex items-center gap-1 bg-amber-100 px-2.5 py-1 rounded-lg">
-                        <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
-                        <span className="font-bold text-amber-700">{member.total_points}</span>
-                      </div>
-                      <p className="text-xs text-gray-400">
-                        {member.visit_count} ครั้ง | {formatCurrency(member.total_spent)}
-                      </p>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+      <main className="p-4 md:p-6 max-w-6xl mx-auto">
+        {/* Search */}
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="ค้นหาชื่อหรือเบอร์โทร..."
+            className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent placeholder:text-gray-400"
+          />
         </div>
-      </main>
 
-      {/* Bottom Nav (Mobile) */}
-      <BottomNav />
+        {/* Points Config Summary */}
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4 mb-4">
+          <div className="flex items-center gap-2 text-amber-700 text-sm">
+            <Star className="w-4 h-4 fill-amber-500" />
+            <span>
+              สะสมครบ <strong>{pointsConfig.points_to_redeem}</strong> แต้ม = ส่วนลด{' '}
+              <strong>{formatCurrency(pointsConfig.redeem_value)}</strong>
+            </span>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="text-sm text-gray-500 mb-4">
+          สมาชิกทั้งหมด {members.length} คน
+        </div>
+
+        {/* Members List */}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : filteredMembers.length === 0 ? (
+          <div className="text-center py-12">
+            <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-500">
+              {searchQuery ? 'ไม่พบสมาชิกที่ค้นหา' : 'ยังไม่มีสมาชิก'}
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            {filteredMembers.map((member) => (
+              <button
+                key={member.id}
+                onClick={() => handleViewMember(member)}
+                className="w-full bg-white border border-gray-200 rounded-xl p-4 hover:border-amber-300 hover:shadow-md transition-all text-left"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Users className="w-6 h-6 text-amber-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900 truncate">{member.name}</p>
+                    <p className="text-sm text-gray-500 flex items-center gap-1">
+                      <Phone className="w-3.5 h-3.5" />
+                      {member.phone}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="flex items-center gap-1 bg-amber-100 px-2.5 py-1 rounded-lg">
+                      <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
+                      <span className="font-bold text-amber-700">{member.total_points}</span>
+                    </div>
+                    <p className="text-xs text-gray-400">
+                      {member.visit_count} ครั้ง | {formatCurrency(member.total_spent)}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </main>
 
       {/* Add Member Modal */}
       <MemberFormModal

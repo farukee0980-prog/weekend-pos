@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Header, MobileHeader, BottomNav } from '@/components/layout';
-import { ProductGrid, Cart, MobilePaymentSheet, PaymentSuccessSheet } from '@/components/pos';
+import { PageHeader } from '@/components/layout';
+import { ProductGrid, Cart, MobilePaymentSheet, PaymentSuccessSheet, HeldOrdersSheet } from '@/components/pos';
 import { useCart } from '@/hooks/use-cart';
-import { PaymentMethod, Product, Category, Member, PointsConfig } from '@/lib/types';
+import { PaymentMethod, Product, Category, Member, PointsConfig, HeldOrder, CartItem } from '@/lib/types';
 import { getAvailableProducts, getAllCategories } from '@/lib/db/products';
 import { createOrder } from '@/lib/db/orders';
 import { generateOrderNumber } from '@/lib/utils';
@@ -12,7 +12,7 @@ import { getCurrentSession } from '@/lib/db/sessions';
 import { getPointsConfig } from '@/lib/db/settings';
 import { updateMemberAfterOrder, calculatePointsFromItems } from '@/lib/db/members';
 import { MemberSearch, MemberFormModal, PointsRedeemSection } from '@/components/members';
-import { ShoppingBag, X } from 'lucide-react';
+import { ShoppingBag, X, Clock } from 'lucide-react';
 
 export default function POSPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -43,6 +43,23 @@ export default function POSPage() {
     default_points_per_item: 1,
   });
   const [redeemCount, setRedeemCount] = useState(0);
+
+  // Hold orders state - load from localStorage
+  const [heldOrders, setHeldOrders] = useState<HeldOrder[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const saved = localStorage.getItem('pos_held_orders');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [isHeldOrdersOpen, setIsHeldOrdersOpen] = useState(false);
+
+  // Persist held orders to localStorage
+  useEffect(() => {
+    localStorage.setItem('pos_held_orders', JSON.stringify(heldOrders));
+  }, [heldOrders]);
 
   const cart = useCart();
 
@@ -209,16 +226,69 @@ export default function POSPage() {
     setIsAddMemberModalOpen(false);
   };
 
+  // Hold Order Functions
+  const handleHoldOrder = () => {
+    if (cart.items.length === 0) return;
+
+    const heldOrder: HeldOrder = {
+      id: `hold-${Date.now()}`,
+      items: [...cart.items],
+      total: cart.total,
+      member: selectedMember,
+      createdAt: new Date().toISOString(),
+    };
+
+    setHeldOrders((prev) => [...prev, heldOrder]);
+    cart.clearCart();
+    setSelectedMember(null);
+    setRedeemCount(0);
+    setIsCartOpen(false);
+  };
+
+  const handleRecallOrder = (order: HeldOrder) => {
+    // ถ้ามีสินค้าในตะกร้าอยู่ ให้ถามก่อน
+    if (cart.items.length > 0) {
+      if (!confirm('ตะกร้าปัจจุบันมีสินค้าอยู่ ต้องการแทนที่ด้วยออเดอร์ที่เลือกหรือไม่?')) {
+        return;
+      }
+    }
+
+    // เรียกคืนออเดอร์
+    cart.clearCart();
+    order.items.forEach((item) => {
+      cart.addItem(item.product, item.quantity);
+      if (item.note) {
+        cart.updateNote(item.product.id, item.note);
+      }
+    });
+
+    if (order.member) {
+      setSelectedMember(order.member);
+    }
+
+    // ลบออกจากรายการพัก
+    setHeldOrders((prev) => prev.filter((o) => o.id !== order.id));
+    setIsHeldOrdersOpen(false);
+  };
+
+  const handleDeleteHeldOrder = (orderId: string) => {
+    if (!confirm('ต้องการลบออเดอร์ที่พักไว้นี้หรือไม่?')) return;
+    setHeldOrders((prev) => prev.filter((o) => o.id !== orderId));
+  };
+
   // Reset redeem count when member changes
   useEffect(() => {
     setRedeemCount(0);
   }, [selectedMember]);
 
   return (
-    <div className="flex flex-col h-screen pb-16 md:pb-0">
+    <div className="flex flex-col h-[calc(100vh-4rem)] md:h-screen">
       {isLoadingData && (
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-gray-500">กำลังโหลดข้อมูลสินค้า...</p>
+          <div className="animate-pulse flex flex-col items-center gap-2">
+            <div className="w-10 h-10 rounded-full bg-amber-200" />
+            <p className="text-gray-400 text-sm">กำลังโหลดข้อมูลสินค้า...</p>
+          </div>
         </div>
       )}
 
@@ -230,14 +300,8 @@ export default function POSPage() {
 
       {!isLoadingData && !dataError && (
         <>
-          {/* Desktop header */}
-          <div className="hidden md:block">
-            <Header title="POS" subtitle="ระบบขายหน้าร้าน" />
-          </div>
-          {/* Mobile header */}
-          <div className="md:hidden">
-            <MobileHeader title="POS" />
-          </div>
+          {/* Header */}
+          <PageHeader title="Weekend POS" subtitle="ระบบขายหน้าร้าน" showLogo />
 
           <div className="flex flex-1 overflow-hidden flex-col md:flex-row relative">
             {/* Product Grid */}
@@ -254,7 +318,7 @@ export default function POSPage() {
             {/* Cart Toggle Button - Mobile Only */}
             <button
               onClick={() => setIsCartOpen(!isCartOpen)}
-              className="md:hidden fixed bottom-20 right-4 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-amber-600 text-white shadow-xl hover:bg-amber-700 transition-all active:scale-95"
+              className="md:hidden fixed bottom-20 right-4 z-40 flex items-center justify-center w-14 h-14 rounded-full bg-amber-600 text-white shadow-xl hover:bg-amber-700 transition-all active:scale-95"
             >
               {isCartOpen ? (
                 <X className="w-6 h-6" />
@@ -274,10 +338,10 @@ export default function POSPage() {
             <div
               className={`
                 md:w-96 md:flex-shrink-0 md:border-t-0 md:relative md:translate-y-0 md:h-auto
-                fixed inset-x-0 bottom-16 z-40 bg-white rounded-t-3xl shadow-2xl transition-transform duration-300 ease-in-out
+                fixed inset-x-0 bottom-16 z-30 bg-white rounded-t-3xl shadow-2xl transition-transform duration-300 ease-in-out
                 ${isCartOpen ? 'translate-y-0' : 'translate-y-full'}
                 md:shadow-none md:rounded-none md:translate-y-0
-                h-[calc(80vh-4rem)] md:h-full max-h-[700px]
+                h-[calc(75vh-4rem)] md:h-full max-h-[600px]
               `}
             >
               {/* Drag Handle - Mobile */}
@@ -296,13 +360,16 @@ export default function POSPage() {
                 selectedMember={selectedMember}
                 onSelectMember={setSelectedMember}
                 onAddNewMember={handleAddNewMember}
+                onHoldOrder={handleHoldOrder}
+                heldOrdersCount={heldOrders.length}
+                onShowHeldOrders={() => setIsHeldOrdersOpen(true)}
               />
             </div>
 
             {/* Backdrop - Mobile */}
             {isCartOpen && (
               <div
-                className="md:hidden fixed inset-0 bg-black/40 z-30 backdrop-blur-sm"
+                className="md:hidden fixed inset-0 bg-black/40 z-20 backdrop-blur-sm"
                 onClick={() => setIsCartOpen(false)}
               />
             )}
@@ -346,10 +413,14 @@ export default function POSPage() {
             />
           )}
 
-          {/* Bottom navigation for mobile */}
-          <div className="md:hidden">
-            <BottomNav />
-          </div>
+          {/* Held Orders Sheet */}
+          <HeldOrdersSheet
+            isOpen={isHeldOrdersOpen}
+            onClose={() => setIsHeldOrdersOpen(false)}
+            heldOrders={heldOrders}
+            onRecall={handleRecallOrder}
+            onDelete={handleDeleteHeldOrder}
+          />
         </>
       )}
     </div>

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Header } from '@/components/layout';
+import { PageHeader } from '@/components/layout';
 import { Card, CardContent, Badge, Modal } from '@/components/ui';
 import { formatCurrency } from '@/lib/utils';
 import { getTodaySales, getTopProducts, getOrdersByDateRange, getSalesSummaryByDateRange, getSessionSales, getOrdersBySession } from '@/lib/db/orders';
@@ -263,10 +263,10 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen">
-      <Header title="รายงาน" subtitle="สรุปยอดขายและประวัติการเปิด-ปิดร้าน" />
+    <div className="flex flex-col min-h-[calc(100vh-4rem)] md:min-h-screen">
+      <PageHeader title="รายงาน" subtitle="สรุปยอดขายและประวัติการเปิด-ปิดร้าน" />
 
-      <div className="flex-1 overflow-auto p-4 md:p-6 space-y-4 md:space-y-6">
+      <div className="flex-1 p-4 md:p-6 space-y-4 md:space-y-6">
         {/* Password Confirm Modal */}
         {authMode && (
           <Modal

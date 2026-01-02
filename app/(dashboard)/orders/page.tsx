@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Search, Eye, Printer, Filter, Clock, ShoppingCart, DollarSign, CheckCircle, XCircle, Store, ChevronRight, ChevronDown, Banknote, Smartphone, Circle, List, Calendar, Info } from 'lucide-react';
-import { Header } from '@/components/layout';
+import { PageHeader } from '@/components/layout';
 import { Card, CardContent, Badge, Button, Modal } from '@/components/ui';
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils';
 import { Order, OrderStatus, PaymentMethod } from '@/lib/types';
@@ -234,10 +234,10 @@ export default function OrdersPage() {
   const sessionInfo = getSelectedSessionInfo();
 
   return (
-    <div className="flex flex-col h-screen">
-      <Header title="ประวัติออเดอร์" subtitle="ดูและจัดการออเดอร์ตามรอบการขาย" />
+    <div className="flex flex-col min-h-[calc(100vh-4rem)] md:min-h-screen">
+      <PageHeader title="ประวัติออเดอร์" subtitle="ดูและจัดการออเดอร์ตามรอบการขาย" />
 
-      <div className="flex-1 overflow-auto p-4 md:p-6 space-y-4 md:space-y-6">
+      <div className="flex-1 p-4 md:p-6 space-y-4 md:space-y-6">
         {/* Current Session Stats */}
         {currentSession && (
           <Card>
@@ -293,13 +293,13 @@ export default function OrdersPage() {
         {/* Search and Filters */}
         <div className="flex flex-col md:flex-row gap-3 md:gap-4">
           <div className="relative flex-1 md:max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
               placeholder="ค้นหาเลขออเดอร์..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder:text-gray-600"
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent placeholder:text-gray-400 text-base"
             />
           </div>
 

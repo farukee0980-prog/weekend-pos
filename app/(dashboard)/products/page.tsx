@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { Plus, Search, Edit, Trash2, Coffee, Package, Image as ImageIcon, FolderPlus, X, AlertTriangle, Check, Star } from 'lucide-react';
-import { Header } from '@/components/layout';
+import { PageHeader } from '@/components/layout';
 import { Button, Card, CardContent, Modal, Badge } from '@/components/ui';
 import { formatCurrency, cn } from '@/lib/utils';
 import { Product, Category } from '@/lib/types';
@@ -125,10 +125,19 @@ export default function ProductsPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen">
-      <Header title="จัดการสินค้า" subtitle="เพิ่ม แก้ไข ลบสินค้า" />
+    <div className="flex flex-col min-h-[calc(100vh-4rem)] md:min-h-screen">
+      <PageHeader 
+        title="จัดการสินค้า" 
+        subtitle="เพิ่ม แก้ไข ลบสินค้า"
+        rightContent={
+          <Button onClick={() => setIsAddModalOpen(true)} size="sm">
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline ml-1">เพิ่มสินค้า</span>
+          </Button>
+        }
+      />
 
-      <div className="flex-1 overflow-auto p-4 md:p-6 space-y-4 md:space-y-6">
+      <div className="flex-1 p-4 md:p-6 space-y-4 md:space-y-6">
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           <StatCard icon={Package} label="ทั้งหมด" value={products.length} color="blue" />
@@ -140,19 +149,15 @@ export default function ProductsPage() {
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
               placeholder="ค้นหาสินค้า..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder:text-gray-600"
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent placeholder:text-gray-400 text-base"
             />
           </div>
-          <Button onClick={() => setIsAddModalOpen(true)} className="shrink-0">
-            <Plus className="w-5 h-5" />
-            <span className="ml-1">เพิ่มสินค้า</span>
-          </Button>
         </div>
 
         {/* Category Filter */}

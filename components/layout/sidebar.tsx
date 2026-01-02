@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
   LayoutGrid,
@@ -9,7 +10,6 @@ import {
   ClipboardList,
   BarChart3,
   Settings,
-  Coffee,
   Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -30,8 +30,14 @@ export function Sidebar() {
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-white border-r border-gray-200">
       {/* Logo */}
       <div className="flex items-center gap-3 px-6 py-5 border-b border-gray-100">
-        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-amber-600">
-          <Coffee className="w-6 h-6 text-white" />
+        <div className="flex items-center justify-center w-10 h-10 rounded-xl overflow-hidden">
+          <Image
+            src="/weekend.jpg"
+            alt="Weekend POS"
+            width={40}
+            height={40}
+            className="object-cover"
+          />
         </div>
         <div>
           <h1 className="text-lg font-bold text-gray-900">Weekend</h1>
