@@ -746,7 +746,7 @@ export default function ReportsPage() {
                   recentOrders.map((order) => (
                     <div key={order.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
                       <div>
-                        <p className="text-sm font-medium text-gray-900">#{order.order_number.slice(-6)}</p>
+                        <p className="text-sm font-medium text-gray-900">#{order.order_number}</p>
                         <p className="text-xs text-gray-500">
                           {order.items.reduce((sum, item) => sum + item.quantity, 0)} รายการ · {new Date(order.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
                         </p>

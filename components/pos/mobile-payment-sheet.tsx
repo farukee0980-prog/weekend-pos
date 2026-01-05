@@ -6,6 +6,7 @@ import { CartItem, PaymentMethod, Member, PointsConfig } from '@/lib/types';
 import { formatCurrency, cn } from '@/lib/utils';
 import { Button } from '@/components/ui';
 import { printReceipt, ReceiptData } from './receipt';
+import { BluetoothPrinterButton } from './bluetooth-printer-button';
 import { MemberSearch, MemberFormModal, PointsRedeemSection } from '@/components/members';
 
 interface MobilePaymentSheetProps {
@@ -224,14 +225,12 @@ export function MobilePaymentSheet({
                     <button
                       key={key}
                       onClick={() => handleNumberPad(key)}
-                      className={cn(
-                        'h-14 rounded-xl font-semibold text-xl transition-colors',
+                      className={cn('h-14 rounded-xl font-semibold transition-colors',
                         key === 'clear' 
-                          ? 'bg-red-100 text-red-600 active:bg-red-200 text-base' 
+                          ? 'bg-red-100 text-red-600 active:bg-red-200' 
                           : key === 'backspace'
-                          ? 'bg-gray-200 text-gray-700 active:bg-gray-300 text-base'
-                          : 'bg-gray-100 text-gray-900 active:bg-gray-200'
-                      )}
+                          ? 'bg-gray-200 active:bg-gray-300'
+                          : 'bg-gray-100 text-xl active:bg-gray-200')}
                     >
                       {key === 'clear' ? 'C' : key === 'backspace' ? '←' : key}
                     </button>
@@ -320,6 +319,10 @@ interface PaymentSuccessSheetProps {
   received: number;
   onNewOrder: () => void;
   items?: CartItem[];
+  selectedMember?: Member | null;
+  pointsEarned?: number;
+  pointsRedeemed?: number;
+  pointsDiscount?: number;
 }
 
 export function PaymentSuccessSheet({
@@ -331,6 +334,10 @@ export function PaymentSuccessSheet({
   received,
   onNewOrder,
   items = [],
+  selectedMember,
+  pointsEarned = 0,
+  pointsRedeemed = 0,
+  pointsDiscount = 0,
 }: PaymentSuccessSheetProps) {
   const change = received - total;
 
@@ -346,13 +353,21 @@ export function PaymentSuccessSheet({
         quantity: item.quantity,
         note: item.note,
       })),
-      subtotal: total,
+      subtotal: total + pointsDiscount,
       discount: 0,
       total,
       paymentMethod,
       received: paymentMethod === 'cash' ? received : undefined,
       change: paymentMethod === 'cash' ? change : undefined,
       createdAt: new Date().toISOString(),
+      pointsDiscount,
+      member: selectedMember ? {
+        name: selectedMember.name,
+        phone: selectedMember.phone,
+        points: (selectedMember.total_points || 0) + pointsEarned - pointsRedeemed,  // คะแนนหลังทำรายการ
+        points_earned: pointsEarned,
+        points_used: pointsRedeemed,
+      } : undefined,
     };
     printReceipt(receiptData);
   };
@@ -408,8 +423,40 @@ export function PaymentSuccessSheet({
               className="w-full h-12 text-base"
             >
               <Printer className="w-5 h-5 mr-2" />
-              พิมพ์ใบเสร็จ
+              พิมพ์ใบเสร็จ (ปกติ)
             </Button>
+            
+            {/* Bluetooth Printer */}
+            <BluetoothPrinterButton 
+              receiptData={{
+                orderNumber,
+                items: items.map((item) => ({
+                  id: item.product.id,
+                  order_id: '',
+                  product_id: item.product.id,
+                  product_name: item.product.name,
+                  price: item.product.price,
+                  quantity: item.quantity,
+                  note: item.note,
+                })),
+                subtotal: total + pointsDiscount,
+                discount: 0,
+                total,
+                paymentMethod,
+                received: paymentMethod === 'cash' ? received : undefined,
+                change: paymentMethod === 'cash' ? change : undefined,
+                createdAt: new Date().toISOString(),
+                pointsDiscount,
+                member: selectedMember ? {
+                  name: selectedMember.name,
+                  phone: selectedMember.phone,
+                  points: (selectedMember.total_points || 0) + pointsEarned - pointsRedeemed,
+                  points_earned: pointsEarned,
+                  points_used: pointsRedeemed,
+                } : undefined,
+              }}
+            />
+            
             <Button onClick={onNewOrder} className="w-full h-14 text-lg">
               ออเดอร์ใหม่
             </Button>

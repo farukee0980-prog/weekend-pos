@@ -41,10 +41,21 @@ export function formatDateTime(date: string | Date): string {
 // Generate order number
 export function generateOrderNumber(): string {
   const now = new Date();
-  const date = now.toISOString().slice(0, 10).replace(/-/g, '');
-  const time = now.toTimeString().slice(0, 8).replace(/:/g, '');
-  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-  return `${date}-${time}-${random}`;
+  
+  // วันที่ในรูปแบบ DDMMYY (6 หลัก)
+  const day = now.getDate().toString().padStart(2, '0');
+  const month = (now.getMonth() + 1).toString().padStart(2, '0');
+  const year = now.getFullYear().toString().slice(-2);
+  const dateStr = `${day}${month}${year}`;
+  
+  // เลขรันนิงจากเวลาในวัน (3 หลัก) - ใช้ชั่วโมง+นาทีแปลงเป็นตัวเลข
+  const hours = now.getHours();
+  const minutes = now.getMinutes();
+  const seconds = now.getSeconds();
+  const timeNumber = (hours * 3600 + minutes * 60 + seconds) % 1000;
+  const runningNumber = timeNumber.toString().padStart(3, '0');
+  
+  return `${dateStr}${runningNumber}`;
 }
 
 // Calculate cart total

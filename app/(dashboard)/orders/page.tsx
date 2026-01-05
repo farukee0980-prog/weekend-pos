@@ -173,6 +173,12 @@ export default function OrdersPage() {
       total: order.total,
       paymentMethod: order.payment_method,
       createdAt: order.created_at,
+      member: order.member_phone ? {
+        name: order.member_phone, // ใช้เบอร์โทรเป็นชื่อชั่วคราว
+        phone: order.member_phone,
+        points_earned: order.points_earned,
+        points_used: order.points_redeemed,
+      } : undefined,
     };
     printReceipt(receiptData);
   };
@@ -475,7 +481,7 @@ export default function OrdersPage() {
                   {filteredOrders.map((order) => (
                     <tr key={order.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
-                        <span className="font-mono text-sm text-gray-900">#{order.order_number.slice(-8)}</span>
+                        <span className="font-mono text-sm text-gray-900">#{order.order_number}</span>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">{formatDateTime(order.created_at)}</td>
                       <td className="px-4 py-3">
@@ -553,7 +559,7 @@ export default function OrdersPage() {
                 <div key={order.id} className="p-4 hover:bg-gray-50">
                   <div className="flex items-start justify-between mb-2">
                     <div>
-                      <span className="font-mono text-sm font-semibold text-gray-900">#{order.order_number.slice(-8)}</span>
+                      <span className="font-mono text-sm font-semibold text-gray-900">#{order.order_number}</span>
                       <p className="text-xs text-gray-500 mt-1">{formatDateTime(order.created_at)}</p>
                       {/* Show member badge */}
                       {order.member_phone && (
@@ -664,7 +670,7 @@ export default function OrdersPage() {
               <XCircle className="w-8 h-8 text-red-600 shrink-0" />
               <div>
                 <p className="font-medium text-red-900">คุณต้องการยกเลิกออเดอร์นี้ใช่หรือไม่?</p>
-                <p className="text-sm text-red-700 mt-1">ออเดอร์ <strong>#{cancelingOrder.order_number.slice(-8)}</strong></p>
+                <p className="text-sm text-red-700 mt-1">ออเดอร์ <strong>#{cancelingOrder.order_number}</strong></p>
               </div>
             </div>
             <p className="text-sm text-gray-600">
@@ -943,7 +949,7 @@ interface OrderDetailModalProps {
 
 function OrderDetailModal({ order, onClose, onPrint }: OrderDetailModalProps) {
   return (
-    <Modal isOpen={true} onClose={onClose} title={`ออเดอร์ #${order.order_number.slice(-8)}`} size="lg">
+    <Modal isOpen={true} onClose={onClose} title={`ออเดอร์ #${order.order_number}`} size="lg">
       <div className="space-y-4">
         {/* Info */}
         <div className="flex items-center justify-between text-sm">

@@ -24,6 +24,9 @@ export default function POSPage() {
     paymentMethod: PaymentMethod;
     received: number;
     items: typeof cart.items;
+    selectedMember?: Member | null;
+    pointsEarned?: number;
+    pointsRedeemed?: number;
   } | null>(null);
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -183,13 +186,18 @@ export default function POSPage() {
 
       // อัปเดตแต้มสมาชิก
       if (selectedMember && orderRes.data) {
-        await updateMemberAfterOrder(
+        const updateResult = await updateMemberAfterOrder(
           selectedMember.id,
           finalTotal,
           pointsEarned,
           pointsRedeemed,
           orderRes.data.id
         );
+        
+        // อัปเดตข้อมูล selectedMember ให้เป็นปัจจุบัน
+        if (updateResult.data) {
+          setSelectedMember(updateResult.data);
+        }
       }
 
       setLastOrder({
@@ -198,6 +206,9 @@ export default function POSPage() {
         paymentMethod,
         received,
         items: [...cart.items],
+        selectedMember,
+        pointsEarned,
+        pointsRedeemed,
       });
 
       setIsPaymentOpen(false);
@@ -410,6 +421,10 @@ export default function POSPage() {
               received={lastOrder.received}
               onNewOrder={handleNewOrder}
               items={lastOrder.items}
+              selectedMember={lastOrder.selectedMember}
+              pointsEarned={lastOrder.pointsEarned}
+              pointsRedeemed={lastOrder.pointsRedeemed}
+              pointsDiscount={lastOrder.pointsRedeemed ? (lastOrder.pointsRedeemed / pointsConfig.points_to_redeem) * pointsConfig.redeem_value : 0}
             />
           )}
 

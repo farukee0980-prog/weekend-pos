@@ -7,6 +7,7 @@ import { Store, Save, Printer, Trash2, AlertTriangle, Star, Gift } from 'lucide-
 import { supabase } from '@/lib/supabase';
 import { getPointsConfig, savePointsConfig } from '@/lib/db/settings';
 import { PointsConfig } from '@/lib/types';
+import { printReceipt, ReceiptData } from '@/components/pos';
 
 const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || '1234';
 
@@ -113,141 +114,44 @@ export default function SettingsPage() {
   };
 
   const handlePrintTest = () => {
-    const testReceipt = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>ใบเสร็จทดสอบ</title>
-        <style>
-          @media print {
-            @page { margin: 0; }
-            body { margin: 10mm; }
-          }
-          body {
-            font-family: 'Sarabun', 'Arial', sans-serif;
-            max-width: 80mm;
-            margin: 0 auto;
-            padding: 10px;
-            font-size: 14px;
-          }
-          .header {
-            text-align: center;
-            margin-bottom: 15px;
-            border-bottom: 2px dashed #000;
-            padding-bottom: 10px;
-          }
-          .shop-name {
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 5px;
-          }
-          .shop-info {
-            font-size: 12px;
-            margin: 2px 0;
-          }
-          .receipt-info {
-            margin: 10px 0;
-            font-size: 12px;
-          }
-          .items {
-            margin: 10px 0;
-            border-top: 1px dashed #000;
-            border-bottom: 1px dashed #000;
-            padding: 10px 0;
-          }
-          .item {
-            display: flex;
-            justify-content: space-between;
-            margin: 5px 0;
-          }
-          .summary {
-            margin: 10px 0;
-          }
-          .summary-row {
-            display: flex;
-            justify-content: space-between;
-            margin: 5px 0;
-          }
-          .total {
-            font-size: 16px;
-            font-weight: bold;
-            border-top: 2px solid #000;
-            padding-top: 5px;
-            margin-top: 5px;
-          }
-          .footer {
-            text-align: center;
-            margin-top: 15px;
-            font-size: 12px;
-            border-top: 2px dashed #000;
-            padding-top: 10px;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <div class="shop-name">${storeName || 'ชื่อร้าน'}</div>
-          ${storeAddress ? `<div class="shop-info">${storeAddress}</div>` : ''}
-          ${storePhone ? `<div class="shop-info">โทร: ${storePhone}</div>` : ''}
-          ${taxId ? `<div class="shop-info">เลขประจำตัวผู้เสียภาษี: ${taxId}</div>` : ''}
-        </div>
+    const testReceiptData: ReceiptData = {
+      orderNumber: 'TEST-001',
+      items: [
+        {
+          id: '1',
+          order_id: 'test-order-1',
+          product_id: '1', 
+          product_name: 'กาแฟอเมริกาโน่',
+          price: 45,
+          quantity: 2,
+          note: ''
+        },
+        {
+          id: '2',
+          order_id: 'test-order-1',
+          product_id: '2',
+          product_name: 'ชาเขียวนม',
+          price: 50,
+          quantity: 1,
+          note: 'น้ำตาลน้อย'
+        }
+      ],
+      subtotal: 140,
+      discount: 0,
+      total: 140,
+      paymentMethod: 'cash',
+      received: 200,
+      change: 60,
+      createdAt: new Date().toISOString(),
+      member: {
+        name: 'คุณทดสอบ',
+        phone: '081-234-5678',
+        points_earned: 5,
+        points_used: 0
+      }
+    };
 
-        <div class="receipt-info">
-          <div>เลขที่: TEST-001</div>
-          <div>วันที่: ${new Date().toLocaleString('th-TH')}</div>
-        </div>
-
-        <div class="items">
-          <div class="item">
-            <span>กาแฟอเมริกาโน่ x2</span>
-            <span>90.00</span>
-          </div>
-          <div class="item">
-            <span>ชาเขียวนม x1</span>
-            <span>50.00</span>
-          </div>
-        </div>
-
-        <div class="summary">
-          <div class="summary-row">
-            <span>รวม:</span>
-            <span>140.00</span>
-          </div>
-          <div class="summary-row total">
-            <span>ยอดชำระ:</span>
-            <span>140.00</span>
-          </div>
-          <div class="summary-row">
-            <span>ชำระโดย:</span>
-            <span>เงินสด</span>
-          </div>
-          <div class="summary-row">
-            <span>รับเงิน:</span>
-            <span>200.00</span>
-          </div>
-          <div class="summary-row">
-            <span>เงินทอน:</span>
-            <span>60.00</span>
-          </div>
-        </div>
-
-        <div class="footer">
-          <div>${footerMessage}</div>
-        </div>
-      </body>
-      </html>
-    `;
-
-    const printWindow = window.open('', '_blank', 'width=800,height=600');
-    if (printWindow) {
-      printWindow.document.write(testReceipt);
-      printWindow.document.close();
-      printWindow.onload = () => {
-        printWindow.print();
-        setTimeout(() => printWindow.close(), 500);
-      };
-    }
+    printReceipt(testReceiptData);
   };
 
   const handleDeleteAllData = async () => {
