@@ -9,8 +9,77 @@ import { getPointsConfig, savePointsConfig } from '@/lib/db/settings';
 import { PointsConfig } from '@/lib/types';
 import { printReceipt, ReceiptData } from '@/components/pos';
 import { BluetoothPrinterButton } from '@/components/pos/bluetooth-printer-button';
+import { bluetoothPrinter } from '@/lib/bluetooth-printer';
 
 const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || '1234';
+
+// Smart Test Print Button Component
+function SmartTestPrintButton({ settings }: { settings: Record<string, string> }) {
+  const [isTesting, setIsTesting] = useState(false);
+
+  const handleTestPrint = async () => {
+    setIsTesting(true);
+    try {
+      const testReceiptData: ReceiptData = {
+        orderNumber: 'TEST001',
+        items: [{
+          id: 'test',
+          order_id: 'test',
+          product_id: 'test',
+          product_name: 'ทดสอบสินค้า',
+          price: 50,
+          quantity: 2,
+          note: 'หมายเหตุทดสอบ',
+        }],
+        subtotal: 100,
+        discount: 0,
+        total: 100,
+        paymentMethod: 'cash',
+        received: 100,
+        change: 0,
+        createdAt: new Date().toISOString(),
+        pointsDiscount: 0,
+        member: {
+          name: 'ลูกค้าทดสอบ',
+          phone: '081-234-5678',
+          points: 150,
+          points_earned: 2,
+          points_used: 0,
+        },
+      };
+
+      // ลองใช้ Bluetooth ก่อน (ถ้าเชื่อมต่ออยู่)
+      const isBluetoothConnected = await bluetoothPrinter.isConnected();
+      
+      if (isBluetoothConnected) {
+        const success = await bluetoothPrinter.print(testReceiptData);
+        if (success) {
+          alert('✅ ทดสอบพิมพ์ Bluetooth สำเร็จ!');
+          return;
+        }
+      }
+      
+      // ถ้า Bluetooth ไม่ได้ ใช้การพิมพ์ปกติ
+      await printReceipt(testReceiptData);
+    } catch (error) {
+      console.error('Test print error:', error);
+      alert('❌ เกิดข้อผิดพลาดในการทดสอบพิมพ์');
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  return (
+    <Button
+      onClick={handleTestPrint}
+      disabled={isTesting}
+      className="w-full"
+    >
+      <Printer className="w-5 h-5 mr-2" />
+      {isTesting ? 'กำลังทดสอบ...' : 'ทดสอบพิมพ์ใบเสร็จ'}
+    </Button>
+  );
+}
 
 export default function SettingsPage() {
   const [storeName, setStoreName] = useState('');
@@ -112,47 +181,6 @@ export default function SettingsPage() {
     } finally {
       setIsSaving(false);
     }
-  };
-
-  const handlePrintTest = () => {
-    const testReceiptData: ReceiptData = {
-      orderNumber: 'TEST-001',
-      items: [
-        {
-          id: '1',
-          order_id: 'test-order-1',
-          product_id: '1', 
-          product_name: 'กาแฟอเมริกาโน่',
-          price: 45,
-          quantity: 2,
-          note: ''
-        },
-        {
-          id: '2',
-          order_id: 'test-order-1',
-          product_id: '2',
-          product_name: 'ชาเขียวนม',
-          price: 50,
-          quantity: 1,
-          note: 'น้ำตาลน้อย'
-        }
-      ],
-      subtotal: 140,
-      discount: 0,
-      total: 140,
-      paymentMethod: 'cash',
-      received: 200,
-      change: 60,
-      createdAt: new Date().toISOString(),
-      member: {
-        name: 'คุณทดสอบ',
-        phone: '081-234-5678',
-        points_earned: 5,
-        points_used: 0
-      }
-    };
-
-    printReceipt(testReceiptData);
   };
 
   const handleDeleteAllData = async () => {
@@ -510,29 +538,13 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <BluetoothPrinterButton 
-                receiptData={{
-                  orderNumber: 'TEST001',
-                  items: [{
-                    id: 'test',
-                    order_id: 'test',
-                    product_id: 'test',
-                    product_name: 'ทดสอบสินค้า',
-                    price: 50,
-                    quantity: 1,
-                    note: '',
-                  }],
-                  subtotal: 50,
-                  discount: 0,
-                  total: 50,
-                  paymentMethod: 'cash',
-                  received: 50,
-                  change: 0,
-                  createdAt: new Date().toISOString(),
-                  pointsDiscount: 0,
-                }}
-                className="w-full"
-              />
+              <SmartTestPrintButton settings={{
+                store_name: storeName,
+                store_address: storeAddress,
+                store_phone: storePhone,
+                tax_id: taxId,
+                footer_message: footerMessage,
+              }} />
 
               <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
                 <p className="font-medium mb-2 flex items-center gap-2">
@@ -548,14 +560,6 @@ export default function SettingsPage() {
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-3">
-          <Button
-            onClick={handlePrintTest}
-            variant="outline"
-            className="flex-1 sm:flex-initial"
-          >
-            <Printer className="w-5 h-5 mr-2" />
-            ทดสอบพิมพ์ใบเสร็จ
-          </Button>
           <Button
             onClick={handleSave}
             disabled={isSaving || !storeName}

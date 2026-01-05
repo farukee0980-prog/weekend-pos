@@ -47,6 +47,8 @@ declare global {
   }
 }
 
+import { getAllStoreSettings } from './db/settings';
+
 export class BluetoothPrinter {
   private device: BluetoothDevice | null = null;
   private server: BluetoothRemoteGATTServer | null = null;
@@ -178,8 +180,23 @@ export class BluetoothPrinter {
         throw new Error('เครื่องปริ้นไม่ได้เชื่อมต่อ กรุณาเชื่อมต่อก่อน');
       }
 
+      console.log('[Bluetooth] Getting store settings...');
+      // Get store settings from database
+      const settingsRes = await getAllStoreSettings();
+      const settings = settingsRes.data || {};
+      
+      // Merge settings with receipt data
+      const dataWithSettings = {
+        ...receiptData,
+        storeName: settings.store_name || 'ร้านค้าของคุณ',
+        storeAddress: settings.store_address || '',
+        storePhone: settings.store_phone || '',
+        taxId: settings.tax_id || '',
+        receiptFooter: settings.footer_message || 'ขอบคุณที่ใช้บริการ',
+      };
+
       console.log('[Bluetooth] Generating ESC/POS data...');
-      const escPosData = this.generateESCPOS(receiptData);
+      const escPosData = this.generateESCPOS(dataWithSettings);
       
       console.log('[Bluetooth] Sending to printer...');
       
@@ -238,6 +255,13 @@ export class BluetoothPrinter {
     const CR = 0x0D; // Carriage Return
     const FF = 0x0C; // Form Feed
     
+    // Get settings synchronously from data (passed from print function)
+    const storeName = data.storeName || 'ร้านค้าของคุณ';
+    const storeAddress = data.storeAddress || '';
+    const storePhone = data.storePhone || '';
+    const taxId = data.taxId || '';
+    const receiptFooter = data.receiptFooter || 'ขอบคุณที่ใช้บริการ';
+    
     // Initialize printer
     commands.push(ESC, 0x40);
     
@@ -251,31 +275,33 @@ export class BluetoothPrinter {
     // Center alignment
     commands.push(ESC, 0x61, 0x01);
     
-    // Store name (double size)
+    // Store name (double size, bold)
     commands.push(GS, 0x21, 0x11); // Double width and height
-    this.addText(commands, data.storeName || 'ร้านค้า');
+    commands.push(ESC, 0x45, 0x01); // Bold on
+    this.addText(commands, storeName);
+    commands.push(ESC, 0x45, 0x00); // Bold off
     commands.push(LF);
     
     // Reset size
     commands.push(GS, 0x21, 0x00);
     
     // Store details
-    if (data.storeAddress) {
-      this.addText(commands, data.storeAddress);
+    if (storeAddress) {
+      this.addText(commands, storeAddress);
       commands.push(LF);
     }
     
-    if (data.storePhone) {
-      this.addText(commands, `โทร: ${data.storePhone}`);
+    if (storePhone) {
+      this.addText(commands, `โทร: ${storePhone}`);
       commands.push(LF);
     }
     
-    if (data.taxId) {
-      this.addText(commands, `Tax ID: ${data.taxId}`);
+    if (taxId) {
+      this.addText(commands, `Tax ID: ${taxId}`);
       commands.push(LF);
     }
     
-    // Separator line
+    // Thick separator line
     commands.push(LF);
     this.addText(commands, '================================');
     commands.push(LF);
@@ -289,12 +315,16 @@ export class BluetoothPrinter {
     const date = new Date(data.createdAt);
     const dateStr = date.toLocaleDateString('th-TH', {
       day: '2-digit',
-      month: '2-digit', 
+      month: 'short',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
     });
     this.addText(commands, `วันที่: ${dateStr}`);
+    commands.push(LF);
+    
+    // Separator
+    this.addText(commands, '--------------------------------');
     commands.push(LF, LF);
     
     // ==== ITEMS ====
@@ -407,17 +437,13 @@ export class BluetoothPrinter {
     commands.push(LF);
     commands.push(ESC, 0x61, 0x01); // Center align
     
-    if (data.receiptFooter) {
-      this.addText(commands, data.receiptFooter);
-      commands.push(LF);
-    }
-    
-    this.addText(commands, 'กรุณาเก็บใบเสร็จไว้เป็นหลักฐาน');
+    this.addText(commands, receiptFooter);
     commands.push(LF);
-    this.addText(commands, 'ขอบคุณที่ใช้บริการ');
-    commands.push(LF, LF, LF, LF);
+    this.addText(commands, 'กรุณาเก็บใบเสร็จไว้เป็นหลักฐาน');
+    commands.push(LF, LF, LF, LF, LF);
     
-    // Cut paper
+    // Cut paper (add more spacing for cutting)
+    commands.push(LF, LF);
     commands.push(GS, 0x56, 0x00); // Full cut
     
     return new Uint8Array(commands).buffer;
