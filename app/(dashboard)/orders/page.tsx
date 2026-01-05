@@ -9,6 +9,7 @@ import { Order, OrderStatus, PaymentMethod } from '@/lib/types';
 import { getAllOrders, updateOrderStatus, getOrdersBySession, getSessionSales } from '@/lib/db/orders';
 import { getCurrentSession, getAllSessions, StoreSession } from '@/lib/db/sessions';
 import { printReceipt, ReceiptData } from '@/components/pos';
+import { bluetoothPrinter } from '@/lib/bluetooth-printer';
 
 const statusConfig: Record<OrderStatus, { label: string; variant: 'success' | 'warning' | 'danger' }> = {
   completed: { label: 'สำเร็จ', variant: 'success' },
@@ -164,7 +165,7 @@ export default function OrdersPage() {
     }
   };
 
-  const handlePrintOrder = (order: Order) => {
+  const handlePrintOrder = async (order: Order) => {
     const receiptData: ReceiptData = {
       orderNumber: order.order_number,
       items: order.items,
@@ -172,15 +173,34 @@ export default function OrdersPage() {
       discount: order.discount,
       total: order.total,
       paymentMethod: order.payment_method,
+      received: order.payment_received,
+      change: order.change_amount,
       createdAt: order.created_at,
+      pointsDiscount: order.points_discount,
       member: order.member_phone ? {
-        name: order.member_phone, // ใช้เบอร์โทรเป็นชื่อชั่วคราว
+        name: order.member_phone,
         phone: order.member_phone,
         points_earned: order.points_earned,
         points_used: order.points_redeemed,
       } : undefined,
     };
-    printReceipt(receiptData);
+
+    try {
+      // ลองใช้ Bluetooth ก่อน (ถ้าเชื่อมต่ออยู่)
+      const isBluetoothConnected = await bluetoothPrinter.isConnected();
+      
+      if (isBluetoothConnected) {
+        await bluetoothPrinter.print(receiptData);
+        return;
+      }
+      
+      // ถ้า Bluetooth ไม่ได้เชื่อมต่อ ใช้การพิมพ์ปกติ
+      printReceipt(receiptData);
+    } catch (error) {
+      console.error('Print error:', error);
+      // Fallback ไปการพิมพ์ปกติ
+      printReceipt(receiptData);
+    }
   };
 
   const formatSessionDate = (dateStr: string) => {

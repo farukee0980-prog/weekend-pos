@@ -35,13 +35,19 @@ export function formatTime(date: string | Date): string {
 
 // Format datetime
 export function formatDateTime(date: string | Date): string {
-  return `${formatDate(date)} ${formatTime(date)}`;
+  return new Intl.DateTimeFormat('th-TH', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(date));
 }
 
 // Generate order number
 export function generateOrderNumber(): string {
   const now = new Date();
-  
+   
   // วันที่ในรูปแบบ DDMMYY (6 หลัก)
   const day = now.getDate().toString().padStart(2, '0');
   const month = (now.getMonth() + 1).toString().padStart(2, '0');

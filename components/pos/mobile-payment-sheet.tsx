@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Banknote, Smartphone, Check, X, Printer, Users, Star, Gift } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Banknote, Smartphone, Check, X, Printer, Users, Star, Gift, Bluetooth, Loader2 } from 'lucide-react';
 import { CartItem, PaymentMethod, Member, PointsConfig } from '@/lib/types';
 import { formatCurrency, cn } from '@/lib/utils';
 import { Button } from '@/components/ui';
@@ -89,11 +89,48 @@ export function MobilePaymentSheet({
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('cash');
   const [receivedAmount, setReceivedAmount] = useState<string>(total.toString());
   
+  // Bluetooth states
+  const [isBluetoothConnected, setIsBluetoothConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [bluetoothError, setBluetoothError] = useState<string | null>(null);
+  
   // Final total after points discount
   const finalTotal = Math.max(0, total - pointsDiscount);
 
   const received = parseFloat(receivedAmount) || 0;
   const change = received - finalTotal;
+
+  // Check Bluetooth connection status
+  useEffect(() => {
+    const checkBluetoothConnection = async () => {
+      try {
+        const connected = await bluetoothPrinter.isConnected();
+        setIsBluetoothConnected(connected);
+      } catch (err) {
+        setIsBluetoothConnected(false);
+      }
+    };
+    
+    if (isOpen) {
+      checkBluetoothConnection();
+    }
+  }, [isOpen]);
+
+  // Handle Bluetooth connection
+  const handleBluetoothConnect = async () => {
+    setIsConnecting(true);
+    setBluetoothError(null);
+
+    try {
+      const connected = await bluetoothPrinter.connect();
+      setIsBluetoothConnected(connected);
+    } catch (err: any) {
+      console.error('Bluetooth connection error:', err);
+      setBluetoothError(err.message || 'เชื่อมต่อเครื่องปริ้นไม่สำเร็จ');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
 
   const handleConfirm = () => {
     onConfirm(selectedMethod, selectedMethod === 'transfer' ? finalTotal : received);
@@ -330,6 +367,60 @@ export function MobilePaymentSheet({
                     แต้มจากออเดอร์นี้
                   </span>
                 </div>
+              </div>
+            )}
+
+            {/* Bluetooth Printer Connection */}
+            {'bluetooth' in navigator && (
+              <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Bluetooth className="w-4 h-4 text-gray-600" />
+                    <span className="text-sm font-medium text-gray-700">เครื่องปริ้น Bluetooth</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className={cn(
+                      'w-2 h-2 rounded-full',
+                      isBluetoothConnected ? 'bg-green-500' : 'bg-gray-400'
+                    )} />
+                    <span className="text-xs text-gray-600">
+                      {isBluetoothConnected ? 'เชื่อมต่อแล้ว' : 'ไม่ได้เชื่อมต่อ'}
+                    </span>
+                  </div>
+                </div>
+
+                {!isBluetoothConnected && (
+                  <button
+                    onClick={handleBluetoothConnect}
+                    disabled={isConnecting}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {isConnecting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        กำลังเชื่อมต่อ...
+                      </>
+                    ) : (
+                      <>
+                        <Bluetooth className="w-4 h-4" />
+                        เชื่อมต่อเครื่องปริ้น
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {isBluetoothConnected && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+                    <Check className="w-4 h-4 text-green-600" />
+                    <span className="text-sm text-green-700">พร้อมพิมพ์ผ่าน Bluetooth</span>
+                  </div>
+                )}
+
+                {bluetoothError && (
+                  <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-xs text-red-700">{bluetoothError}</p>
+                  </div>
+                )}
               </div>
             )}
 

@@ -163,19 +163,19 @@ self.addEventListener('push', (event) => {
   const options = {
     body: event.data ? event.data.text() : 'มีข้อความใหม่',
     icon: '/icon-192.png',
-    badge: '/icon-72.png',
+    badge: '/icon-192.png',
     vibrate: [200, 100, 200],
     tag: 'pos-notification',
     actions: [
       {
         action: 'view',
         title: 'ดู',
-        icon: '/icon-96.png'
+        icon: '/icon-192.png'
       },
       {
         action: 'dismiss',
         title: 'ปิด',
-        icon: '/icon-96.png'
+        icon: '/icon-192.png'
       }
     ]
   };

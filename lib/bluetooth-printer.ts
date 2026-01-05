@@ -48,6 +48,7 @@ declare global {
 }
 
 import { getAllStoreSettings } from './db/settings';
+import { formatDateTime } from './utils';
 import type { ReceiptData } from '@/components/pos/receipt';
 
 export class BluetoothPrinter {
@@ -251,36 +252,23 @@ export class BluetoothPrinter {
     const taxId = settings.tax_id || '';
     const receiptFooter = settings.receipt_footer || 'ขอบคุณที่ใช้บริการ';
     
-    // Format date function
-    const formatDate = (dateStr: string) => {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString('th-TH', {
-        year: 'numeric', month: 'short', day: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-      });
-    };
-    
     // Initialize printer
     commands.push(ESC, 0x40);
     
     // Set character encoding to UTF-8
     commands.push(ESC, 0x74, 0x20);
     
-    // Set line spacing
-    commands.push(ESC, 0x32); // Default line spacing
+    // Set line spacing to compact
+    commands.push(ESC, 0x33, 0x10); // Custom line spacing (16 dots)
     
     // ==== HEADER (Center Aligned) ====
     commands.push(ESC, 0x61, 0x01); // Center alignment
     
-    // Store name (double size, bold)
-    commands.push(GS, 0x21, 0x11); // Double width and height
-    commands.push(ESC, 0x45, 0x01); // Bold on
+    // Store name (Bold only, no width stretching)
+    commands.push(ESC, 0x21, 0x30); // Emphasize mode (taller but not wider)
     this.addText(commands, storeName);
-    commands.push(ESC, 0x45, 0x00); // Bold off
+    commands.push(ESC, 0x21, 0x00); // Reset
     commands.push(LF);
-    
-    // Reset size
-    commands.push(GS, 0x21, 0x00);
     
     // Store details
     if (storeAddress) {
@@ -307,7 +295,7 @@ export class BluetoothPrinter {
     
     this.addText(commands, `หมายเลขใบเสร็จ: #${data.orderNumber}`);
     commands.push(LF);
-    this.addText(commands, `วันที่: ${formatDate(data.createdAt)}`);
+    this.addText(commands, `วันที่: ${formatDateTime(data.createdAt)}`);
     commands.push(LF);
     
     // Separator
@@ -361,13 +349,11 @@ export class BluetoothPrinter {
       commands.push(LF);
     }
     
-    // Total (Bold, larger)
-    commands.push(ESC, 0x45, 0x01); // Bold on
-    commands.push(GS, 0x21, 0x01); // Double width
+    // Total (Bold and emphasized)
+    commands.push(ESC, 0x21, 0x30); // Emphasize mode
     this.addText(commands, `ยอดสุทธิ: ${data.total.toFixed(2)}`);
-    commands.push(ESC, 0x45, 0x00); // Bold off
-    commands.push(GS, 0x21, 0x00); // Normal size
-    commands.push(LF);
+    commands.push(ESC, 0x21, 0x00); // Reset
+    commands.push(LF, LF);
     
     // Separator
     commands.push(ESC, 0x61, 0x00); // Left align
@@ -392,9 +378,9 @@ export class BluetoothPrinter {
       commands.push(LF);
       
       commands.push(ESC, 0x61, 0x01); // Center align
-      commands.push(ESC, 0x45, 0x01); // Bold on
+      commands.push(ESC, 0x21, 0x08); // Bold only (no width change)
       this.addText(commands, 'ข้อมูลสมาชิก');
-      commands.push(ESC, 0x45, 0x00); // Bold off
+      commands.push(ESC, 0x21, 0x00); // Reset
       commands.push(LF);
       
       this.addText(commands, `${data.member.name} (${data.member.phone})`);

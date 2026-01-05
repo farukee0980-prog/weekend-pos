@@ -1,7 +1,7 @@
 'use client';
 
 import React, { forwardRef, useEffect, useState } from 'react';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDateTime } from '@/lib/utils';
 import { OrderItem, PaymentMethod } from '@/lib/types';
 import { getAllStoreSettings } from '@/lib/db/settings';
 
@@ -46,14 +46,6 @@ export const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ data }, ref) 
   const taxId = settings.tax_id || '';
   const receiptFooter = settings.receipt_footer || 'ขอบคุณที่ใช้บริการ';
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('th-TH', {
-      year: 'numeric', month: 'short', day: 'numeric',
-      hour: '2-digit', minute: '2-digit',
-    });
-  };
-
   return (
     <div ref={ref} className="bg-white text-black p-4 font-mono max-w-sm mx-auto">
       {/* Header */}
@@ -69,7 +61,7 @@ export const Receipt = forwardRef<HTMLDivElement, ReceiptProps>(({ data }, ref) 
       {/* Order Info */}
       <div className="text-sm mb-2">
         <p>หมายเลขใบเสร็จ: #{data.orderNumber}</p>
-        <p>วันที่: {formatDate(data.createdAt)}</p>
+        <p>วันที่: {formatDateTime(data.createdAt)}</p>
       </div>
 
       <div className="border-t border-dashed border-gray-400 my-2"></div>
@@ -188,14 +180,6 @@ export async function printReceipt(data: ReceiptData) {
       alert('กรุณาอนุญาต pop-up เพื่อพิมพ์ใบเสร็จ');
       return;
     }
-
-    const formatDate = (dateStr: string) => {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString('th-TH', {
-        year: 'numeric', month: 'short', day: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-      });
-    };
 
     // สร้าง HTML สำหรับพิมพ์
     const html = `<!DOCTYPE html>
@@ -334,7 +318,7 @@ export async function printReceipt(data: ReceiptData) {
     <div class="thick-line"></div>
     
     <div class="receipt-info">เลขที่: #${data.orderNumber}</div>
-    <div class="receipt-info">วันที่: ${formatDate(data.createdAt)}</div>
+    <div class="receipt-info">วันที่: ${formatDateTime(data.createdAt)}</div>
     
     <div class="line"></div>
     

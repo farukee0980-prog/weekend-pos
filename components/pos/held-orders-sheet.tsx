@@ -2,7 +2,7 @@
 
 import { X, Clock, ShoppingBag, User, Trash2, RotateCcw } from 'lucide-react';
 import { HeldOrder } from '@/lib/types';
-import { formatCurrency, cn } from '@/lib/utils';
+import { formatCurrency, formatTime, cn } from '@/lib/utils';
 import { Button } from '@/components/ui';
 
 interface HeldOrdersSheetProps {
@@ -21,14 +21,6 @@ export function HeldOrdersSheet({
   onDelete,
 }: HeldOrdersSheetProps) {
   if (!isOpen) return null;
-
-  const formatTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleTimeString('th-TH', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
