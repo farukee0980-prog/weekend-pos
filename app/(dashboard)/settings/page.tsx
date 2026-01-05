@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { PageHeader } from '@/components/layout';
 import { Card, CardContent, Button, Modal } from '@/components/ui';
-import { Store, Save, Printer, Trash2, AlertTriangle, Star, Gift, Bluetooth, Smartphone, Lightbulb } from 'lucide-react';
+import { Store, Save, Printer, Trash2, AlertTriangle, Star, Gift, Bluetooth, Smartphone, Lightbulb, CheckCircle, AlertCircle, Loader2, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getPointsConfig, savePointsConfig } from '@/lib/db/settings';
 import { PointsConfig } from '@/lib/types';
@@ -78,6 +78,163 @@ function SmartTestPrintButton({ settings }: { settings: Record<string, string> }
       <Printer className="w-5 h-5 mr-2" />
       {isTesting ? 'กำลังทดสอบ...' : 'ทดสอบพิมพ์ใบเสร็จ'}
     </Button>
+  );
+}
+
+// Bluetooth Printer Management Component
+function BluetoothPrinterManager() {
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [connectedDevice, setConnectedDevice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isSupported, setIsSupported] = useState(false);
+
+  useEffect(() => {
+    // Check support and connection status
+    setIsSupported('bluetooth' in navigator);
+    checkConnectionStatus();
+  }, []);
+
+  const checkConnectionStatus = async () => {
+    try {
+      const connected = await bluetoothPrinter.isConnected();
+      setIsConnected(connected);
+      if (connected) {
+        // Try to get device name if possible
+        setConnectedDevice('เครื่องปริ้น Bluetooth');
+      }
+    } catch (err) {
+      setIsConnected(false);
+    }
+  };
+
+  const handleConnect = async () => {
+    setIsConnecting(true);
+    setError(null);
+    
+    try {
+      const success = await bluetoothPrinter.connect();
+      setIsConnected(success);
+      if (success) {
+        setConnectedDevice('เครื่องปริ้น Bluetooth');
+        alert('✅ เชื่อมต่อเครื่องปริ้น Bluetooth สำเร็จ!');
+      }
+    } catch (err: any) {
+      console.error('Bluetooth connection error:', err);
+      setError(err.message || 'เชื่อมต่อไม่สำเร็จ');
+      setIsConnected(false);
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      await bluetoothPrinter.disconnect();
+      setIsConnected(false);
+      setConnectedDevice(null);
+      setError(null);
+      alert('✅ ตัดการเชื่อมต่อแล้ว');
+    } catch (err: any) {
+      console.error('Disconnect error:', err);
+    }
+  };
+
+  if (!isSupported) {
+    return (
+      <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
+          <div>
+            <p className="font-medium text-yellow-800 mb-2">เบราว์เซอร์ไม่รองรับ Web Bluetooth</p>
+            <div className="text-sm text-yellow-700 space-y-1">
+              <p><strong>วิธีแก้ไข:</strong></p>
+              <ul className="list-disc list-inside ml-2 space-y-1">
+                <li>ใช้ <strong>Chrome หรือ Edge</strong> เท่านั้น</li>
+                <li>ไปที่ <code className="bg-yellow-100 px-1 rounded">chrome://flags</code></li>
+                <li>ค้นหา "Experimental Web Platform features"</li>
+                <li>เปลี่ยนเป็น <strong>Enabled</strong> และรีสตาร์ท</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Connection Status */}
+      <div className="p-4 border rounded-lg">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-gray-300'}`} />
+            <span className="font-medium">
+              {isConnected ? 'เชื่อมต่อแล้ว' : 'ยังไม่ได้เชื่อมต่อ'}
+            </span>
+          </div>
+          {isConnected && connectedDevice && (
+            <span className="text-sm text-gray-500">{connectedDevice}</span>
+          )}
+        </div>
+        
+        <div className="flex gap-2">
+          {!isConnected ? (
+            <Button 
+              onClick={handleConnect} 
+              disabled={isConnecting}
+              className="flex-1"
+            >
+              {isConnecting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  กำลังค้นหา...
+                </>
+              ) : (
+                <>
+                  <Bluetooth className="w-4 h-4 mr-2" />
+                  เชื่อมต่อเครื่องปริ้น
+                </>
+              )}
+            </Button>
+          ) : (
+            <Button 
+              onClick={handleDisconnect}
+              variant="outline" 
+              className="flex-1"
+            >
+              <X className="w-4 h-4 mr-2" />
+              ตัดการเชื่อมต่อ
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Error Display */}
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+            <div className="text-sm text-red-800">
+              <p className="font-medium mb-1">เกิดข้อผิดพลาด:</p>
+              <p>{error}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Display */}
+      {isConnected && !error && (
+        <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-green-600" />
+            <span className="text-sm text-green-800 font-medium">
+              เชื่อมต่อเครื่องปริ้นสำเร็จ พร้อมใช้งาน
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -526,10 +683,10 @@ export default function SettingsPage() {
                   <div className="space-y-2">
                     <p className="text-sm text-blue-900 font-medium flex items-center gap-2">
                       <Smartphone className="w-4 h-4" />
-                      วิธีการตั้งค่าเครื่องปริ้น Bluetooth
+                      วิธีการเตรียมเครื่องปริ้น
                     </p>
                     <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside ml-2">
-                      <li>เปิดเครื่องปริ้นให้อยู่ในโหมด Pairing</li>
+                      <li>เปิดเครื่องปริ้นและให้อยู่ในโหมด Pairing</li>
                       <li>ใช้เบราว์เซอร์ Chrome หรือ Edge เท่านั้น</li>
                       <li>บน Android ต้องเปิด Location/GPS ด้วย</li>
                       <li>ปิด Bluetooth บนอุปกรณ์อื่นที่เชื่อมต่ออยู่</li>
@@ -538,6 +695,10 @@ export default function SettingsPage() {
                 </div>
               </div>
 
+              {/* Bluetooth Connection Management */}
+              <BluetoothPrinterManager />
+
+              {/* Test Print Button */}
               <SmartTestPrintButton settings={{
                 store_name: storeName,
                 store_address: storeAddress,
@@ -549,10 +710,13 @@ export default function SettingsPage() {
               <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
                 <p className="font-medium mb-2 flex items-center gap-2">
                   <Lightbulb className="w-4 h-4 text-amber-500" />
-                  เคล็ดลับ:
+                  เคล็ดลับการใช้งาน:
                 </p>
-                <p>หลังจากเชื่อมต่อครั้งแรกแล้ว ระบบจะจดจำและใช้เครื่องปริ้น Bluetooth โดยอัตโนมัติ</p>
-                <p>หากมีปัญหาการเชื่อมต่อ ลองรีสตาร์ทเครื่องปริ้นแล้วเชื่อมต่อใหม่</p>
+                <ul className="space-y-1 list-disc list-inside ml-2">
+                  <li>หลังเชื่อมต่อครั้งแรก ระบบจะใช้เครื่องปริ้น Bluetooth อัตโนมัติ</li>
+                  <li>หากพิมพ์ไม่ออก ให้ทดสอบการเชื่อมต่อด้วยปุ่มทดสอบ</li>
+                  <li>ปัญหาการเชื่อมต่อ ลองรีสตาร์ทเครื่องปริ้นแล้วเชื่อมต่อใหม่</li>
+                </ul>
               </div>
             </div>
           </CardContent>
