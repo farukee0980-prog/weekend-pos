@@ -59,12 +59,10 @@ export function Cart({
           {onShowHeldOrders && (
             <button
               onClick={onShowHeldOrders}
-              className={cn(
-                'relative flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
+              className={cn('relative flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
                 heldOrdersCount > 0
                   ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              )}
+                  : 'bg-gray-100 hover:bg-gray-200')}
             >
               <Clock className="w-3.5 h-3.5" />
               <span>พักไว้</span>

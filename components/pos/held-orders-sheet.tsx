@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { X, Clock, ShoppingBag, User, Trash2, RotateCcw } from 'lucide-react';
 import { HeldOrder } from '@/lib/types';
 import { formatCurrency, cn } from '@/lib/utils';

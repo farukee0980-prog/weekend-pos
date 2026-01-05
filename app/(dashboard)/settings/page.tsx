@@ -8,7 +8,6 @@ import { supabase } from '@/lib/supabase';
 import { getPointsConfig, savePointsConfig } from '@/lib/db/settings';
 import { PointsConfig } from '@/lib/types';
 import { printReceipt, ReceiptData } from '@/components/pos';
-import { BluetoothPrinterButton } from '@/components/pos/bluetooth-printer-button';
 import { bluetoothPrinter } from '@/lib/bluetooth-printer';
 
 const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || '1234';

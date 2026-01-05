@@ -48,6 +48,7 @@ declare global {
 }
 
 import { getAllStoreSettings } from './db/settings';
+import type { ReceiptData } from '@/components/pos/receipt';
 
 export class BluetoothPrinter {
   private device: BluetoothDevice | null = null;
@@ -174,7 +175,7 @@ export class BluetoothPrinter {
     return this.server?.connected || false;
   }
 
-  async print(receiptData: any): Promise<boolean> {
+  async print(receiptData: ReceiptData): Promise<boolean> {
     try {
       if (!this.characteristic) {
         throw new Error('เครื่องปริ้นไม่ได้เชื่อมต่อ กรุณาเชื่อมต่อก่อน');
@@ -184,19 +185,9 @@ export class BluetoothPrinter {
       // Get store settings from database
       const settingsRes = await getAllStoreSettings();
       const settings = settingsRes.data || {};
-      
-      // Merge settings with receipt data
-      const dataWithSettings = {
-        ...receiptData,
-        storeName: settings.store_name || 'ร้านค้าของคุณ',
-        storeAddress: settings.store_address || '',
-        storePhone: settings.store_phone || '',
-        taxId: settings.tax_id || '',
-        receiptFooter: settings.footer_message || 'ขอบคุณที่ใช้บริการ',
-      };
 
-      console.log('[Bluetooth] Generating ESC/POS data...');
-      const escPosData = this.generateESCPOS(dataWithSettings);
+      console.log('[Bluetooth] Generating ESC/POS data from receipt format...');
+      const escPosData = this.generateESCPOSFromReceipt(receiptData, settings);
       
       console.log('[Bluetooth] Sending to printer...');
       
@@ -245,22 +236,29 @@ export class BluetoothPrinter {
     return chunks;
   }
 
-  private generateESCPOS(data: any): ArrayBuffer {
+  private generateESCPOSFromReceipt(data: ReceiptData, settings: Record<string, string>): ArrayBuffer {
     const commands: number[] = [];
     
     // ESC/POS Control Characters
     const ESC = 0x1B;
     const GS = 0x1D;
     const LF = 0x0A; // Line Feed
-    const CR = 0x0D; // Carriage Return
-    const FF = 0x0C; // Form Feed
     
-    // Get settings synchronously from data (passed from print function)
-    const storeName = data.storeName || 'ร้านค้าของคุณ';
-    const storeAddress = data.storeAddress || '';
-    const storePhone = data.storePhone || '';
-    const taxId = data.taxId || '';
-    const receiptFooter = data.receiptFooter || 'ขอบคุณที่ใช้บริการ';
+    // Get settings
+    const storeName = settings.store_name || 'ร้านค้าของคุณ';
+    const storeAddress = settings.store_address || '';
+    const storePhone = settings.store_phone || '';
+    const taxId = settings.tax_id || '';
+    const receiptFooter = settings.receipt_footer || 'ขอบคุณที่ใช้บริการ';
+    
+    // Format date function
+    const formatDate = (dateStr: string) => {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('th-TH', {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      });
+    };
     
     // Initialize printer
     commands.push(ESC, 0x40);
@@ -271,9 +269,8 @@ export class BluetoothPrinter {
     // Set line spacing
     commands.push(ESC, 0x32); // Default line spacing
     
-    // ==== HEADER ====
-    // Center alignment
-    commands.push(ESC, 0x61, 0x01);
+    // ==== HEADER (Center Aligned) ====
+    commands.push(ESC, 0x61, 0x01); // Center alignment
     
     // Store name (double size, bold)
     commands.push(GS, 0x21, 0x11); // Double width and height
@@ -297,153 +294,134 @@ export class BluetoothPrinter {
     }
     
     if (taxId) {
-      this.addText(commands, `Tax ID: ${taxId}`);
+      this.addText(commands, `เลขประจำตัวผู้เสียภาษี: ${taxId}`);
       commands.push(LF);
     }
     
-    // Thick separator line
-    commands.push(LF);
+    // Separator
     this.addText(commands, '================================');
     commands.push(LF);
     
-    // ==== ORDER INFO ====
+    // ==== ORDER INFO (Left Aligned) ====
     commands.push(ESC, 0x61, 0x00); // Left align
     
-    this.addText(commands, `เลขที่: #${data.orderNumber}`);
+    this.addText(commands, `หมายเลขใบเสร็จ: #${data.orderNumber}`);
     commands.push(LF);
-    
-    const date = new Date(data.createdAt);
-    const dateStr = date.toLocaleDateString('th-TH', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    this.addText(commands, `วันที่: ${dateStr}`);
+    this.addText(commands, `วันที่: ${formatDate(data.createdAt)}`);
     commands.push(LF);
     
     // Separator
     this.addText(commands, '--------------------------------');
-    commands.push(LF, LF);
+    commands.push(LF);
+    
+    // Items Header
+    this.addText(commands, 'รายการ           x1      ราคา');
+    commands.push(LF);
+    this.addText(commands, '--------------------------------');
+    commands.push(LF);
     
     // ==== ITEMS ====
-    if (data.items && data.items.length > 0) {
-      data.items.forEach((item: any) => {
-        const itemName = item.product_name || item.name || '';
-        const quantity = item.quantity || 1;
-        const price = item.price || 0;
-        const total = quantity * price;
-        
-        // Item line
-        const itemLine = `${quantity}x ${itemName}`;
-        this.addText(commands, itemLine);
+    data.items.forEach((item) => {
+      const itemLine = `${item.quantity}x ${item.product_name}`;
+      const itemPrice = (item.price * item.quantity).toFixed(2);
+      
+      this.addText(commands, itemLine);
+      commands.push(LF);
+      
+      // Price (right aligned)
+      commands.push(ESC, 0x61, 0x02); // Right align
+      this.addText(commands, itemPrice);
+      commands.push(LF);
+      commands.push(ESC, 0x61, 0x00); // Back to left align
+      
+      // Note if exists
+      if (item.note) {
+        this.addText(commands, `  * ${item.note}`);
         commands.push(LF);
-        
-        // Price line (right aligned)
-        commands.push(ESC, 0x61, 0x02); // Right align
-        this.addText(commands, `${total.toFixed(2)}`);
-        commands.push(LF);
-        commands.push(ESC, 0x61, 0x00); // Back to left align
-        
-        // Note if exists
-        if (item.note) {
-          this.addText(commands, `  * ${item.note}`);
-          commands.push(LF);
-        }
-        
-        commands.push(LF);
-      });
-    }
+      }
+    });
     
     // Separator
     this.addText(commands, '--------------------------------');
     commands.push(LF);
     
-    // ==== TOTALS ====
+    // ==== SUMMARY (Right Aligned) ====
     commands.push(ESC, 0x61, 0x02); // Right align
     
-    if (data.subtotal !== undefined) {
-      this.addText(commands, `รวม: ${data.subtotal.toFixed(2)}`);
-      commands.push(LF);
-    }
+    this.addText(commands, `ยอดรวม: ${data.subtotal.toFixed(2)}`);
+    commands.push(LF);
     
     if (data.pointsDiscount && data.pointsDiscount > 0) {
-      this.addText(commands, `ส่วนลด (แต้ม): -${data.pointsDiscount.toFixed(2)}`);
+      this.addText(commands, `ส่วนลดจากแต้ม: -${data.pointsDiscount.toFixed(2)}`);
       commands.push(LF);
     }
     
-    if (data.discount && data.discount > 0) {
-      this.addText(commands, `ส่วนลดอื่นๆ: -${data.discount.toFixed(2)}`);
+    if (data.discount > 0) {
+      this.addText(commands, `ส่วนลดเพิ่มเติม: -${data.discount.toFixed(2)}`);
       commands.push(LF);
     }
     
-    // Total (Bold)
+    // Total (Bold, larger)
     commands.push(ESC, 0x45, 0x01); // Bold on
     commands.push(GS, 0x21, 0x01); // Double width
-    this.addText(commands, `รวมสุทธิ: ${data.total.toFixed(2)} บาท`);
+    this.addText(commands, `ยอดสุทธิ: ${data.total.toFixed(2)}`);
     commands.push(ESC, 0x45, 0x00); // Bold off
     commands.push(GS, 0x21, 0x00); // Normal size
-    commands.push(LF, LF);
+    commands.push(LF);
+    
+    // Separator
+    commands.push(ESC, 0x61, 0x00); // Left align
+    this.addText(commands, '--------------------------------');
+    commands.push(LF);
     
     // ==== PAYMENT ====
-    commands.push(ESC, 0x61, 0x00); // Left align
-    
     const paymentMethod = data.paymentMethod === 'cash' ? 'เงินสด' : 'โอนเงิน';
-    this.addText(commands, `ชำระด้วย: ${paymentMethod}`);
+    this.addText(commands, `ชำระโดย: ${paymentMethod}`);
     commands.push(LF);
     
     if (data.paymentMethod === 'cash' && data.received) {
-      this.addText(commands, `รับเงิน: ${data.received.toFixed(2)} บาท`);
+      this.addText(commands, `รับเงิน: ${data.received.toFixed(2)}`);
       commands.push(LF);
-      
-      const change = data.change || (data.received - data.total);
-      this.addText(commands, `เงินทอน: ${change.toFixed(2)} บาท`);
+      this.addText(commands, `เงินทอน: ${(data.change || 0).toFixed(2)}`);
       commands.push(LF);
     }
     
     // ==== MEMBER INFO ====
     if (data.member) {
+      this.addText(commands, '--------------------------------');
       commands.push(LF);
+      
       commands.push(ESC, 0x61, 0x01); // Center align
-      commands.push(ESC, 0x45, 0x01); // Bold
-      this.addText(commands, '** สมาชิก **');
+      commands.push(ESC, 0x45, 0x01); // Bold on
+      this.addText(commands, 'ข้อมูลสมาชิก');
       commands.push(ESC, 0x45, 0x00); // Bold off
       commands.push(LF);
       
-      commands.push(ESC, 0x61, 0x00); // Left align
-      this.addText(commands, data.member.name);
+      this.addText(commands, `${data.member.name} (${data.member.phone})`);
       commands.push(LF);
-      this.addText(commands, data.member.phone);
+      this.addText(commands, `คะแนนคงเหลือ: ${data.member.points || 0} แต้ม`);
       commands.push(LF);
-      
-      if (data.member.points !== undefined) {
-        this.addText(commands, `คะแนนคงเหลือ: ${data.member.points} แต้ม`);
-        commands.push(LF);
-      }
       
       if (data.member.points_earned) {
-        this.addText(commands, `ได้แต้ม: +${data.member.points_earned} แต้ม`);
+        this.addText(commands, `แต้มที่ได้รับ: ${data.member.points_earned}`);
         commands.push(LF);
       }
       
       if (data.member.points_used) {
-        this.addText(commands, `ใช้แต้ม: -${data.member.points_used} แต้ม`);
+        this.addText(commands, `แต้มที่ใช้: ${data.member.points_used}`);
         commands.push(LF);
       }
     }
     
-    // ==== FOOTER ====
+    // ==== FOOTER (Center Aligned) ====
+    this.addText(commands, '--------------------------------');
     commands.push(LF);
     commands.push(ESC, 0x61, 0x01); // Center align
     
     this.addText(commands, receiptFooter);
-    commands.push(LF);
-    this.addText(commands, 'กรุณาเก็บใบเสร็จไว้เป็นหลักฐาน');
-    commands.push(LF, LF, LF, LF, LF);
+    commands.push(LF, LF, LF, LF);
     
-    // Cut paper (add more spacing for cutting)
-    commands.push(LF, LF);
+    // Cut paper
     commands.push(GS, 0x56, 0x00); // Full cut
     
     return new Uint8Array(commands).buffer;
