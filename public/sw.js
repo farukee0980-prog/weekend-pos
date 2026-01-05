@@ -1,31 +1,34 @@
 // Service Worker for PWA
-const CACHE_NAME = 'freedom-pos-v1';
+const CACHE_NAME = 'freedom-pos-v2'; // เปลี่ยน version
 const CACHE_URLS = [
   '/',
+  '/login',
   '/pos',
   '/members', 
   '/products',
   '/orders',
   '/reports',
   '/settings',
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png'
+  '/manifest.json'
 ];
 
 // Install event - cache resources
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing Service Worker');
+  console.log('[SW] Installing Service Worker v2');
   
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('[SW] Caching app shell');
-        return cache.addAll(CACHE_URLS);
+        // แคช resources ที่สำคัญก่อน
+        return cache.addAll(['/', '/manifest.json']);
       })
       .then(() => {
         console.log('[SW] Skip waiting');
         return self.skipWaiting();
+      })
+      .catch((error) => {
+        console.error('[SW] Cache failed:', error);
       })
   );
 });
@@ -51,52 +54,57 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event - serve from cache, fallback to network
+// Fetch event - Network First strategy for better reliability  
 self.addEventListener('fetch', (event) => {
   // Skip non-GET requests
   if (event.request.method !== 'GET') {
     return;
   }
 
-  // Skip external requests
+  // Skip external requests (Supabase, etc.)
   if (!event.request.url.startsWith(self.location.origin)) {
     return;
   }
 
+  // Skip API calls and special routes
+  if (event.request.url.includes('/api/') || 
+      event.request.url.includes('/_next/') ||
+      event.request.url.includes('.hot-update.')) {
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request)
-      .then((cachedResponse) => {
-        // Return cached version if available
-        if (cachedResponse) {
-          console.log('[SW] Serving from cache:', event.request.url);
-          return cachedResponse;
+    // Network First - try network first, fallback to cache
+    fetch(event.request)
+      .then((response) => {
+        // If network succeeds, cache the response
+        if (response && response.status === 200 && response.type === 'basic') {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME)
+            .then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
         }
-
-        // Otherwise, fetch from network
-        console.log('[SW] Fetching from network:', event.request.url);
-        return fetch(event.request)
-          .then((response) => {
-            // Don't cache if not a success response
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
+        return response;
+      })
+      .catch(() => {
+        // Network failed, try cache
+        console.log('[SW] Network failed, trying cache for:', event.request.url);
+        return caches.match(event.request)
+          .then((cachedResponse) => {
+            if (cachedResponse) {
+              console.log('[SW] Serving from cache:', event.request.url);
+              return cachedResponse;
             }
-
-            // Clone the response
-            const responseToCache = response.clone();
-
-            // Add to cache for future use
-            caches.open(CACHE_NAME)
-              .then((cache) => {
-                cache.put(event.request, responseToCache);
-              });
-
-            return response;
-          })
-          .catch(() => {
-            // Return offline page if available
+            
+            // If requesting a page and no cache, return index
             if (event.request.destination === 'document') {
+              console.log('[SW] Serving index.html as fallback');
               return caches.match('/');
             }
+            
+            // For other resources, throw error
+            throw new Error('No cached response available');
           });
       })
   );
@@ -175,6 +183,15 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification('Freedom POS', options)
   );
+});
+
+// Error handling for failed requests
+self.addEventListener('error', (event) => {
+  console.error('[SW] Service Worker Error:', event.error);
+});
+
+self.addEventListener('unhandledrejection', (event) => {
+  console.error('[SW] Unhandled Promise Rejection:', event.reason);
 });
 
 // Handle notification clicks
