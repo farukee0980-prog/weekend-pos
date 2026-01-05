@@ -6,8 +6,8 @@ import { CartItem, PaymentMethod, Member, PointsConfig } from '@/lib/types';
 import { formatCurrency, cn } from '@/lib/utils';
 import { Button } from '@/components/ui';
 import { printReceipt, ReceiptData } from './receipt';
-import { BluetoothPrinterButton } from './bluetooth-printer-button';
 import { MemberSearch, MemberFormModal, PointsRedeemSection } from '@/components/members';
+import { bluetoothPrinter } from '@/lib/bluetooth-printer';
 
 interface MobilePaymentSheetProps {
   isOpen: boolean;
@@ -31,6 +31,46 @@ const paymentMethods: { id: PaymentMethod; name: string; icon: React.ElementType
 ];
 
 const quickAmounts = [20, 50, 100, 500, 1000];
+
+// Smart Print Button Component
+function SmartPrintButton({ receiptData }: { receiptData: ReceiptData }) {
+  const [isPrinting, setIsPrinting] = useState(false);
+
+  const handleSmartPrint = async () => {
+    setIsPrinting(true);
+    try {
+      // ลองใช้ Bluetooth ก่อน (ถ้าเชื่อมต่อแล้ว)
+      const isBluetoothConnected = await bluetoothPrinter.isConnected();
+      
+      if (isBluetoothConnected) {
+        const success = await bluetoothPrinter.print(receiptData);
+        if (success) {
+          return;
+        }
+      }
+      
+      // ถ้า Bluetooth ไม่สำเร็จ ใช้การพิมพ์ปกติ
+      printReceipt(receiptData);
+    } catch (error) {
+      console.error('Print error:', error);
+      // Fallback ไปการพิมพ์ปกติ
+      printReceipt(receiptData);
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  return (
+    <Button 
+      onClick={handleSmartPrint}
+      disabled={isPrinting}
+      className="w-full h-12 text-base"
+    >
+      <Printer className="w-5 h-5 mr-2" />
+      {isPrinting ? 'กำลังพิมพ์...' : 'พิมพ์ใบเสร็จ'}
+    </Button>
+  );
+}
 
 export function MobilePaymentSheet({ 
   isOpen, 
@@ -417,17 +457,7 @@ export function PaymentSuccessSheet({
 
           {/* Actions */}
           <div className="space-y-3">
-            <Button 
-              onClick={handlePrint} 
-              variant="outline" 
-              className="w-full h-12 text-base"
-            >
-              <Printer className="w-5 h-5 mr-2" />
-              พิมพ์ใบเสร็จ (ปกติ)
-            </Button>
-            
-            {/* Bluetooth Printer */}
-            <BluetoothPrinterButton 
+            <SmartPrintButton 
               receiptData={{
                 orderNumber,
                 items: items.map((item) => ({

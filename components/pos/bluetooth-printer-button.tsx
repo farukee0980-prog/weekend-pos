@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Bluetooth, Printer, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { Bluetooth, Printer, Loader2, AlertCircle, CheckCircle, Smartphone } from 'lucide-react';
 import { bluetoothPrinter } from '@/lib/bluetooth-printer';
 import { ReceiptData } from './receipt';
 
@@ -207,7 +207,10 @@ export function BluetoothPrinterButton({
       {/* Instructions */}
       {!isConnected && !error && !isConnecting && (
         <div className="text-xs text-gray-500 space-y-1 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="font-medium text-blue-900 mb-2">📱 วิธีเชื่อมต่อเครื่องปริ้น:</p>
+          <p className="font-medium text-blue-900 mb-2 flex items-center gap-2">
+            <Smartphone className="w-4 h-4" />
+            วิธีเชื่อมต่อเครื่องปริ้น:
+          </p>
           <p>• เปิด Bluetooth บนเครื่องปริ้นให้อยู่ในโหมด Pairing</p>
           <p>• ใช้เบราว์เซอร์ <strong>Chrome หรือ Edge</strong> เท่านั้น</p>
           <p>• บน Android: เปิด Location/GPS ด้วย</p>

@@ -3,11 +3,12 @@
 import React, { useEffect, useState } from 'react';
 import { PageHeader } from '@/components/layout';
 import { Card, CardContent, Button, Modal } from '@/components/ui';
-import { Store, Save, Printer, Trash2, AlertTriangle, Star, Gift } from 'lucide-react';
+import { Store, Save, Printer, Trash2, AlertTriangle, Star, Gift, Bluetooth, Smartphone, Lightbulb } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getPointsConfig, savePointsConfig } from '@/lib/db/settings';
 import { PointsConfig } from '@/lib/types';
 import { printReceipt, ReceiptData } from '@/components/pos';
+import { BluetoothPrinterButton } from '@/components/pos/bluetooth-printer-button';
 
 const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || '1234';
 
@@ -473,6 +474,74 @@ export default function SettingsPage() {
                 <Save className="w-5 h-5 mr-2" />
                 {isSavingPoints ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่าแต้ม'}
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Bluetooth Printer Settings */}
+        <Card>
+          <CardContent className="p-4 md:p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-3 bg-blue-100 rounded-xl">
+                <Bluetooth className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">เครื่องปริ้น Bluetooth</h2>
+                <p className="text-sm text-gray-500">เชื่อมต่อและตั้งค่าเครื่องปริ้นเทอร์มอล</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <div className="flex items-start gap-3">
+                  <Bluetooth className="w-5 h-5 text-blue-600 mt-0.5" />
+                  <div className="space-y-2">
+                    <p className="text-sm text-blue-900 font-medium flex items-center gap-2">
+                      <Smartphone className="w-4 h-4" />
+                      วิธีการตั้งค่าเครื่องปริ้น Bluetooth
+                    </p>
+                    <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside ml-2">
+                      <li>เปิดเครื่องปริ้นให้อยู่ในโหมด Pairing</li>
+                      <li>ใช้เบราว์เซอร์ Chrome หรือ Edge เท่านั้น</li>
+                      <li>บน Android ต้องเปิด Location/GPS ด้วย</li>
+                      <li>ปิด Bluetooth บนอุปกรณ์อื่นที่เชื่อมต่ออยู่</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <BluetoothPrinterButton 
+                receiptData={{
+                  orderNumber: 'TEST001',
+                  items: [{
+                    id: 'test',
+                    order_id: 'test',
+                    product_id: 'test',
+                    product_name: 'ทดสอบสินค้า',
+                    price: 50,
+                    quantity: 1,
+                    note: '',
+                  }],
+                  subtotal: 50,
+                  discount: 0,
+                  total: 50,
+                  paymentMethod: 'cash',
+                  received: 50,
+                  change: 0,
+                  createdAt: new Date().toISOString(),
+                  pointsDiscount: 0,
+                }}
+                className="w-full"
+              />
+
+              <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded-lg">
+                <p className="font-medium mb-2 flex items-center gap-2">
+                  <Lightbulb className="w-4 h-4 text-amber-500" />
+                  เคล็ดลับ:
+                </p>
+                <p>หลังจากเชื่อมต่อครั้งแรกแล้ว ระบบจะจดจำและใช้เครื่องปริ้น Bluetooth โดยอัตโนมัติ</p>
+                <p>หากมีปัญหาการเชื่อมต่อ ลองรีสตาร์ทเครื่องปริ้นแล้วเชื่อมต่อใหม่</p>
+              </div>
             </div>
           </CardContent>
         </Card>
