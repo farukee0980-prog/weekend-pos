@@ -302,70 +302,90 @@ export class BluetoothPrinter {
     
     // ==== ITEMS ====
     data.items.forEach((item) => {
-      const itemLine = `${item.quantity}x ${item.product_name}`;
-      const itemPrice = (item.price * item.quantity).toFixed(2);
+      // Format: "ชื่อสินค้า    จำนวน   ราคา"
+      const itemName = item.product_name.length > 16 
+        ? item.product_name.substring(0, 16) 
+        : item.product_name;
+      const qty = `x${item.quantity}`;
+      const price = (item.price * item.quantity).toFixed(0);
       
-      this.addText(commands, itemLine);
+      // Left aligned item name
+      commands.push(ESC, 0x61, 0x00);
+      this.addText(commands, itemName);
       commands.push(LF);
       
-      // Price (right aligned)
-      commands.push(ESC, 0x61, 0x02); // Right align
-      // Item name first
-      this.addText(commands, item.product_name);
+      // Right aligned quantity and price on same line
+      commands.push(ESC, 0x61, 0x02);
+      this.addText(commands, `${qty}  ${price}`);
       commands.push(LF);
-      
-      // Quantity and price on same line
-      const qtyAndPrice = `  ${item.quantity}x @ ${item.price.toFixed(2)}`;
-      this.addText(commands, qtyAndPrice);
-      
-      // Total price (right aligned)
-      commands.push(ESC, 0x61, 0x02); // Right align
-      this.addText(commands, (item.price * item.quantity).toFixed(2));
-      commands.push(LF);
-      commands.push(ESC, 0x61, 0x00); // Back to left align
       
       // Note if exists
       if (item.note) {
+        commands.push(ESC, 0x61, 0x00);
         this.addText(commands, `  *${item.note}`);
         commands.push(LF);
       }
     });
     
-    // ==== SUMMARY (Right Aligned) ====
-    commands.push(ESC, 0x61, 0x02); // Right align
-    this.addText(commands, `Subtotal: ${data.subtotal.toFixed(2)}`);
+    // ==== SUMMARY ====
+    this.addText(commands, '--------------------------------');
+    commands.push(LF);
+    
+    // Subtotal (Right aligned)
+    commands.push(ESC, 0x61, 0x00); // Left align label
+    this.addText(commands, `Subtotal`);
+    commands.push(ESC, 0x61, 0x02); // Right align value
+    this.addText(commands, `${data.subtotal.toFixed(0)}`);
     commands.push(LF);
     
     if (data.pointsDiscount && data.pointsDiscount > 0) {
-      this.addText(commands, `Points: -${data.pointsDiscount.toFixed(2)}`);
+      commands.push(ESC, 0x61, 0x00);
+      this.addText(commands, `Points`);
+      commands.push(ESC, 0x61, 0x02);
+      this.addText(commands, `-${data.pointsDiscount.toFixed(0)}`);
       commands.push(LF);
     }
     
     if (data.discount > 0) {
-      this.addText(commands, `Discount: -${data.discount.toFixed(2)}`);
+      commands.push(ESC, 0x61, 0x00);
+      this.addText(commands, `Discount`);
+      commands.push(ESC, 0x61, 0x02);
+      this.addText(commands, `-${data.discount.toFixed(0)}`);
       commands.push(LF);
     }
     
-    // Total (Bold)
-    commands.push(ESC, 0x21, 0x08); // Bold mode
-    this.addText(commands, `TOTAL: ${data.total.toFixed(2)}`);
-    commands.push(ESC, 0x21, 0x00); // Reset
-    commands.push(LF);
-    
-    // Separator
-    commands.push(ESC, 0x61, 0x00); // Left align
     this.addText(commands, '--------------------------------');
     commands.push(LF);
     
+    // Total (Bold)
+    commands.push(ESC, 0x21, 0x08); // Bold mode
+    commands.push(ESC, 0x61, 0x00);
+    this.addText(commands, `TOTAL`);
+    commands.push(ESC, 0x61, 0x02);
+    this.addText(commands, `${data.total.toFixed(0)}`);
+    commands.push(ESC, 0x21, 0x00); // Reset
+    commands.push(LF);
+    
     // ==== PAYMENT ====
+    this.addText(commands, '--------------------------------');
+    commands.push(LF);
+    
+    commands.push(ESC, 0x61, 0x00); // Left align
     const paymentMethod = data.paymentMethod === 'cash' ? 'Cash' : 'Transfer';
     this.addText(commands, `Pay: ${paymentMethod}`);
     commands.push(LF);
     
     if (data.paymentMethod === 'cash' && data.received) {
-      this.addText(commands, `Received: ${data.received.toFixed(2)}`);
+      commands.push(ESC, 0x61, 0x00);
+      this.addText(commands, `Received`);
+      commands.push(ESC, 0x61, 0x02);
+      this.addText(commands, `${data.received.toFixed(0)}`);
       commands.push(LF);
-      this.addText(commands, `Change: ${(data.change || 0).toFixed(2)}`);
+      
+      commands.push(ESC, 0x61, 0x00);
+      this.addText(commands, `Change`);
+      commands.push(ESC, 0x61, 0x02);
+      this.addText(commands, `${(data.change || 0).toFixed(0)}`);
       commands.push(LF);
     }
     
@@ -374,26 +394,38 @@ export class BluetoothPrinter {
       this.addText(commands, '--------------------------------');
       commands.push(LF);
       
-      this.addText(commands, '** MEMBER **');
+      commands.push(ESC, 0x61, 0x01); // Center
+      commands.push(ESC, 0x21, 0x08); // Bold
+      this.addText(commands, 'MEMBER');
       commands.push(ESC, 0x21, 0x00); // Reset
       commands.push(LF);
       
-      this.addText(commands, `${data.member.name}`);
+      commands.push(ESC, 0x61, 0x00); // Left align
+      this.addText(commands, data.member.name);
       commands.push(LF);
-      this.addText(commands, `${data.member.phone}`);
-      commands.push(LF);
-      this.addText(commands, `Points: ${data.member.points || 0}`);
+      this.addText(commands, data.member.phone);
       commands.push(LF);
       
       if (data.member.points_earned) {
-        this.addText(commands, `Earned: +${data.member.points_earned}`);
+        this.addText(commands, `Earned`);
+        commands.push(ESC, 0x61, 0x02);
+        this.addText(commands, `+${data.member.points_earned}`);
         commands.push(LF);
       }
       
       if (data.member.points_used) {
-        this.addText(commands, `Used: -${data.member.points_used}`);
+        commands.push(ESC, 0x61, 0x00);
+        this.addText(commands, `Used`);
+        commands.push(ESC, 0x61, 0x02);
+        this.addText(commands, `-${data.member.points_used}`);
         commands.push(LF);
       }
+      
+      commands.push(ESC, 0x61, 0x00);
+      this.addText(commands, `Balance`);
+      commands.push(ESC, 0x61, 0x02);
+      this.addText(commands, `${data.member.points || 0}`);
+      commands.push(LF);
     }
     
     // ==== FOOTER (Center Aligned) ====

@@ -584,7 +584,7 @@ function ProductFormModal({ isOpen, onClose, product, categories, onSave, defaul
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-900 mb-1 flex items-center gap-2">
+          <label className="block text-sm font-medium text-gray-900 mb-1 items-center gap-2">
             <Star className="w-4 h-4 text-amber-500" />
             แต้มสะสมต่อชิ้น
           </label>
